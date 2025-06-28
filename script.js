@@ -1,6 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+// Configuración de Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyCUYhpx2tDjX40Si-DPXWzONa8wqwW9pb8",
   authDomain: "semaforoproductivo.firebaseapp.com",
@@ -10,13 +11,16 @@ const firebaseConfig = {
   appId: "1:273022276004:web:2127523c4a0a6b7884f131"
 };
 
+// Inicialización de Firebase
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
+// Variables
 const cronos = {};
 const estadosActuales = {};
-const timestampsLocales = {};  // 🆕 para controlar rebotes
+const timestampsVistos = {};  // 🆕 Guardamos el último timestamp recibido por máquina
 
+// Mostrar el estado visualmente
 function mostrarEstado(id, color, texto = '', timestamp = '') {
   const maquina = document.getElementById(id);
   const estadoDiv = maquina.querySelector('.estado');
@@ -46,9 +50,9 @@ function mostrarEstado(id, color, texto = '', timestamp = '') {
   estadosActuales[id] = color;
 }
 
+// Guardar el estado en Firestore
 async function guardarEnFirestore(id, estado, texto) {
   const now = new Date().toISOString();
-  timestampsLocales[id] = now; // 🆕 guardamos el cambio local
   await setDoc(doc(db, "maquinas", id), {
     estado,
     texto,
@@ -56,6 +60,7 @@ async function guardarEnFirestore(id, estado, texto) {
   });
 }
 
+// Cambiar estado desde botones
 async function cambiarEstado(id, color) {
   const maquina = document.getElementById(id);
   const mensaje = document.getElementById(`mensaje-${id}`);
@@ -85,9 +90,10 @@ async function cambiarEstado(id, color) {
   }
 
   await guardarEnFirestore(id, color, texto);
-  estadosActuales[id] = color; // opcional, ya lo hace mostrarEstado
+  estadosActuales[id] = color;
 }
 
+// Escucha en tiempo real desde Firebase
 window.onload = () => {
   ['maquina1', 'maquina2'].forEach(id => {
     const docRef = doc(db, "maquinas", id);
@@ -95,9 +101,11 @@ window.onload = () => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         const recibido = new Date(data.timestamp).getTime();
-        const local = new Date(timestampsLocales[id] || 0).getTime();
+        const visto = new Date(timestampsVistos[id] || 0).getTime();
 
-        if (recibido > local) {
+        // Solo aplicar si es más nuevo que lo que ya vimos
+        if (recibido > visto) {
+          timestampsVistos[id] = data.timestamp;
           mostrarEstado(id, data.estado, data.texto, data.timestamp);
         }
       }
