@@ -68,6 +68,12 @@ async function guardarEnFirestore(id, estado, texto) {
 
 // Cambiar estado desde botones
 async function cambiarEstado(id, color) {
+  // 🚫 Bloqueo: solo el autor puede restablecer desde rojo
+  if (color === 'verde' && origenes[id] && origenes[id] !== deviceId) {
+    alert('Solo el dispositivo que activó la falla puede restablecer esta máquina.');
+    return;
+  }
+
   const maquina = document.getElementById(id);
   const mensaje = document.getElementById(`mensaje-${id}`);
   const cronometro = document.getElementById(`cronometro-${id}`);
@@ -97,7 +103,11 @@ async function cambiarEstado(id, color) {
 
   await guardarEnFirestore(id, color, texto);
   estadosActuales[id] = color;
+
+  // ✅ Refrescar botones después de cambiar
+  actualizarBotones(id, color);
 }
+
 
 // Escuchar cambios en tiempo real
 window.onload = () => {
