@@ -74,10 +74,14 @@ async function cambiarEstado(id, color) {
   const origenActual = origenes[id];
 
   // ❌ BLOQUEO: si intento poner en verde una máquina que no fallé yo
-  if (estadoActual === 'rojo' && color === 'verde' && origenActual && origenActual !== deviceId) {
-    alert('❌ Solo el dispositivo que activó la falla puede restablecer la máquina.');
-    return;
-  }
+  if ((estadoActual === 'rojo' || estadoActual === 'amarillo') &&
+    color === 'verde' &&
+    origenActual &&
+    origenActual !== deviceId) {
+  alert('❌ Solo el dispositivo que activó el estado puede restablecer la máquina.');
+  return;
+}
+
 
   const maquina = document.getElementById(id);
   const mensaje = document.getElementById(`mensaje-${id}`);
