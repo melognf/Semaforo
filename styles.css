@@ -1,0 +1,60 @@
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  background: #f4f4f4;
+}
+header {
+  background: #222;
+  color: white;
+  padding: 10px;
+  text-align: center;
+}
+.panel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+  padding: 1rem;
+}
+.maquina {
+  background: white;
+  padding: 1rem;
+  border-radius: 10px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+  text-align: center;
+  position: relative;
+}
+.estado {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  margin: 10px auto;
+  border: 5px solid #ccc;
+}
+.verde { background: #4CAF50; }
+.amarillo { background: #FFC107; animation: parpadeoLento 2s infinite; }
+.rojo { background: #F44336; animation: parpadeoRapido 0.8s infinite; }
+
+@keyframes parpadeoLento {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+@keyframes parpadeoRapido {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.1; }
+}
+.botones button {
+  margin: 5px;
+  padding: 10px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: bold;
+}
+.verde-btn { background: #4CAF50; color: white; }
+.amarillo-btn { background: #FFC107; color: black; }
+.rojo-btn { background: #F44336; color: white; }
+.mensaje, .cronometro {
+  margin-top: 10px;
+  font-size: 0.9em;
+  color: #333;
+}

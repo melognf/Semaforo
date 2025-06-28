@@ -1,27 +1,10 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Panel de Control - Línea de Producción</title>
-  <style>
-    /* Aquí va todo tu CSS, igual que antes */
-    body { font-family: Arial, sans-serif; margin: 0; background: #f4f4f4; }
-    header { background: #222; color: white; padding: 10px; text-align: center; }
-    .panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; padding: 1rem; }
-    .maquina { background: white; padding: 1rem; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); text-align: center; position: relative; }
-    .estado { width: 80px; height: 80px; border-radius: 50%; margin: 10px auto; border: 5px solid #ccc; }
-    .verde { background: #4CAF50; }
-    .amarillo { background: #FFC107; animation: parpadeoLento 2s infinite; }
-    .rojo { background: #F44336; animation: parpadeoRapido 0.8s infinite; }
-    @keyframes parpadeoLento { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
-    @keyframes parpadeoRapido { 0%, 100% { opacity: 1; } 50% { opacity: 0.1; } }
-    .botones button { margin: 5px; padding: 10px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
-    .verde-btn { background: #4CAF50; color: white; }
-    .amarillo-btn { background: #FFC107; color: black; }
-    .rojo-btn { background: #F44336; color: white; }
-    .mensaje, .cronometro { margin-top: 10px; font-size: 0.9em; color: #333; }
-  </style>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <header>
@@ -32,9 +15,9 @@
       <h2>Máquina 1</h2>
       <div class="estado verde"></div>
       <div class="botones">
-        <button class="verde-btn">OK</button>
-        <button class="amarillo-btn">Advertencia</button>
-        <button class="rojo-btn">Fallo</button>
+        <button class="verde-btn" onclick="cambiarEstado('maquina1', 'verde')">OK</button>
+        <button class="amarillo-btn" onclick="cambiarEstado('maquina1', 'amarillo')">Advertencia</button>
+        <button class="rojo-btn" onclick="cambiarEstado('maquina1', 'rojo')">Fallo</button>
       </div>
       <div class="mensaje" id="mensaje-maquina1"></div>
       <div class="cronometro" id="cronometro-maquina1"></div>
@@ -44,113 +27,15 @@
       <h2>Máquina 2</h2>
       <div class="estado verde"></div>
       <div class="botones">
-        <button class="verde-btn">OK</button>
-        <button class="amarillo-btn">Advertencia</button>
-        <button class="rojo-btn">Fallo</button>
+        <button class="verde-btn" onclick="cambiarEstado('maquina2', 'verde')">OK</button>
+        <button class="amarillo-btn" onclick="cambiarEstado('maquina2', 'amarillo')">Advertencia</button>
+        <button class="rojo-btn" onclick="cambiarEstado('maquina2', 'rojo')">Fallo</button>
       </div>
       <div class="mensaje" id="mensaje-maquina2"></div>
       <div class="cronometro" id="cronometro-maquina2"></div>
     </div>
   </main>
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
-    const firebaseConfig = {
-      apiKey: "AIzaSyCUYhpx2tDjX40Si-DPXWzONa8wqwW9pb8",
-      authDomain: "semaforoproductivo.firebaseapp.com",
-      projectId: "semaforoproductivo",
-      storageBucket: "semaforoproductivo.firebasestorage.app",
-      messagingSenderId: "273022276004",
-      appId: "1:273022276004:web:2127523c4a0a6b7884f131"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-
-    const cronos = {};
-    const tiemposInicio = {};
-
-    async function guardarEnFirestore(id, estado, texto, tiempo = '') {
-      const data = {
-        estado,
-        texto,
-        tiempo,
-        timestamp: new Date().toISOString()
-      };
-      await setDoc(doc(db, "maquinas", id), data);
-    }
-
-    async function cambiarEstado(id, color, textoManual = null, desdeFirebase = false) {
-      const maquina = document.getElementById(id);
-      const estado = maquina.querySelector('.estado');
-      const mensaje = document.getElementById(`mensaje-${id}`);
-      const cronometro = document.getElementById(`cronometro-${id}`);
-
-      estado.className = 'estado ' + color;
-      mensaje.textContent = '';
-      cronometro.textContent = '';
-      clearInterval(cronos[id]);
-
-      let texto = textoManual;
-
-      if (!desdeFirebase) {
-        if (color === 'amarillo') {
-          texto = prompt('Describa el problema de advertencia:');
-          if (!texto) return;
-        } else if (color === 'rojo') {
-          texto = prompt('Describa el fallo de la máquina:');
-          if (!texto) return;
-          tiemposInicio[id] = Date.now();
-          cronos[id] = setInterval(() => {
-            const elapsed = Math.floor((Date.now() - tiemposInicio[id]) / 1000);
-            const mins = Math.floor(elapsed / 60).toString().padStart(2, '0');
-            const secs = (elapsed % 60).toString().padStart(2, '0');
-            cronometro.textContent = `⏱ Tiempo detenido: ${mins}:${secs}`;
-          }, 1000);
-        }
-        await guardarEnFirestore(id, color, texto);
-      }
-
-      if (color === 'amarillo' && texto) {
-        mensaje.textContent = `⚠️ ${texto}`;
-      } else if (color === 'rojo' && texto) {
-        mensaje.textContent = `❌ ${texto}`;
-      }
-    }
-
-    window.onload = () => {
-      ['maquina1', 'maquina2'].forEach(id => {
-        // Agregar event listeners a botones
-        const maquina = document.getElementById(id);
-        maquina.querySelector('.verde-btn').addEventListener('click', () => cambiarEstado(id, 'verde'));
-        maquina.querySelector('.amarillo-btn').addEventListener('click', () => cambiarEstado(id, 'amarillo'));
-        maquina.querySelector('.rojo-btn').addEventListener('click', () => cambiarEstado(id, 'rojo'));
-
-        // Escuchar cambios en Firestore y actualizar UI
-        const docRef = doc(db, "maquinas", id);
-        onSnapshot(docRef, (docSnap) => {
-          if (docSnap.exists()) {
-            const data = docSnap.data();
-            cambiarEstado(id, data.estado, data.texto, true);
-
-            const cronometro = document.getElementById(`cronometro-${id}`);
-            if (data.estado === 'rojo') {
-              const inicio = new Date(data.timestamp).getTime();
-              clearInterval(cronos[id]);
-              cronos[id] = setInterval(() => {
-                const elapsed = Math.floor((Date.now() - inicio) / 1000);
-                const mins = Math.floor(elapsed / 60).toString().padStart(2, '0');
-                const secs = (elapsed % 60).toString().padStart(2, '0');
-                cronometro.textContent = `⏱ Tiempo detenido: ${mins}:${secs}`;
-              }, 1000);
-            }
-          }
-        });
-      });
-    };
-  </script>
-
+  <script type="module" src="script.js"></script>
 </body>
 </html>
