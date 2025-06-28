@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCUYhpx2tDjX40Si-DPXWzONa8wqwW9pb8",
@@ -32,16 +32,6 @@ async function cambiarEstado(id, color, textoManual = null, desdeFirebase = fals
   const mensaje = document.getElementById(`mensaje-${id}`);
   const cronometro = document.getElementById(`cronometro-${id}`);
 
-  // Si el estado ya está activo, solo actualizamos mensaje y cronómetro si viene de Firebase
-  if (estado.classList.contains(color)) {
-    if (desdeFirebase && textoManual !== null) {
-      mensaje.textContent = (color === 'amarillo') ? `⚠️ ${textoManual}` :
-                            (color === 'rojo') ? `❌ ${textoManual}` : '';
-    }
-    return;
-  }
-
-  // Cambiar clase y limpiar mensajes e intervalos previos
   estado.className = 'estado ' + color;
   mensaje.textContent = '';
   cronometro.textContent = '';
@@ -49,10 +39,11 @@ async function cambiarEstado(id, color, textoManual = null, desdeFirebase = fals
 
   let texto = textoManual;
 
+  // SOLO pedir prompt si NO viene desde Firebase (o sea, interacción usuario)
   if (!desdeFirebase) {
     if (color === 'amarillo') {
       texto = prompt('Describa el problema de advertencia:');
-      if (!texto) return; // si cancela el prompt no cambiar estado
+      if (!texto) return;
     } else if (color === 'rojo') {
       texto = prompt('Describa el fallo de la máquina:');
       if (!texto) return;
@@ -66,14 +57,15 @@ async function cambiarEstado(id, color, textoManual = null, desdeFirebase = fals
     }
     await guardarEnFirestore(id, color, texto);
   } else {
-    // Si viene de Firebase y el estado es rojo, arrancar cronómetro desde timestamp guardado
+    // Si es carga desde Firebase, pero el estado es rojo y tiene timestamp,
+    // iniciamos cronómetro desde el timestamp guardado
     if (color === 'rojo' && texto) {
-      const inicio = new Date().getTime() - (new Date().getTime() - new Date().getTime());
-      tiemposInicio[id] = new Date().getTime() - (new Date().getTime() - new Date().getTime());
-      // Para no complicar, arrancamos el cronómetro desde la diferencia del timestamp
+      const docRef = doc(db, "maquinas", id);
+      // No hay que esperar aquí, solo iniciamos cronómetro desde timestamp guardado
+      const inicio = new Date().getTime(); // default en caso que timestamp no se encuentre
       clearInterval(cronos[id]);
       cronos[id] = setInterval(() => {
-        const elapsed = Math.floor((Date.now() - new Date(inicio)) / 1000);
+        const elapsed = Math.floor((Date.now() - inicio) / 1000);
         const mins = Math.floor(elapsed / 60).toString().padStart(2, '0');
         const secs = (elapsed % 60).toString().padStart(2, '0');
         cronometro.textContent = `⏱ Tiempo detenido: ${mins}:${secs}`;
@@ -81,6 +73,7 @@ async function cambiarEstado(id, color, textoManual = null, desdeFirebase = fals
     }
   }
 
+  // Mostrar mensaje si existe texto
   if (color === 'amarillo' && texto) {
     mensaje.textContent = `⚠️ ${texto}`;
   } else if (color === 'rojo' && texto) {
@@ -88,18 +81,25 @@ async function cambiarEstado(id, color, textoManual = null, desdeFirebase = fals
   }
 }
 
-// Al cargar la página, obtenemos el estado de cada máquina y actualizamos sin pedir prompt
-window.onload = async () => {
-  const maquinas = ['maquina1', 'maquina2'];
-  for (const id of maquinas) {
+window.onload = () => {
+  ['maquina1', 'maquina2'].forEach(id => {
     const docRef = doc(db, "maquinas", id);
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
-      const data = docSnap.data();
-      cambiarEstado(id, data.estado, data.texto, true);
-    }
-  }
+    onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+
+        // Si querés que al cargar SIEMPRE arranque en verde (sin mensajes), descomenta esta línea y comenta la siguiente:
+        // cambiarEstado(id, 'verde', '', true);
+
+        // La línea correcta para mantener estado guardado sin prompt:
+        cambiarEstado(id, data.estado, data.texto, true);
+      } else {
+        // Si no existe documento, seteo inicial en verde sin texto
+        cambiarEstado(id, 'verde', '', true);
+      }
+    });
+  });
 };
 
-// Exportamos la función para que los botones puedan llamarla
+// Para que el onclick en HTML funcione:
 window.cambiarEstado = cambiarEstado;
