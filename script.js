@@ -11,16 +11,21 @@ const firebaseConfig = {
   appId: "1:273022276004:web:2127523c4a0a6b7884f131"
 };
 
-// Inicialización de Firebase
+// Inicializar Firebase
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Variables
+// Variables globales
 const cronos = {};
 const estadosActuales = {};
-const timestampsVistos = {};  // 🆕 Guardamos el último timestamp recibido por máquina
+const timestampsVistos = {};
+const origenes = {};
 
-// Mostrar el estado visualmente
+// 🔐 Identificador único del dispositivo
+const deviceId = localStorage.getItem('deviceId') || crypto.randomUUID();
+localStorage.setItem('deviceId', deviceId);
+
+// Mostrar estado visualmente
 function mostrarEstado(id, color, texto = '', timestamp = '') {
   const maquina = document.getElementById(id);
   const estadoDiv = maquina.querySelector('.estado');
@@ -50,13 +55,14 @@ function mostrarEstado(id, color, texto = '', timestamp = '') {
   estadosActuales[id] = color;
 }
 
-// Guardar el estado en Firestore
+// Guardar en Firestore
 async function guardarEnFirestore(id, estado, texto) {
   const now = new Date().toISOString();
   await setDoc(doc(db, "maquinas", id), {
     estado,
     texto,
-    timestamp: now
+    timestamp: now,
+    origen: deviceId
   });
 }
 
@@ -93,7 +99,7 @@ async function cambiarEstado(id, color) {
   estadosActuales[id] = color;
 }
 
-// Escucha en tiempo real desde Firebase
+// Escuchar cambios en tiempo real
 window.onload = () => {
   ['maquina1', 'maquina2'].forEach(id => {
     const docRef = doc(db, "maquinas", id);
@@ -103,14 +109,30 @@ window.onload = () => {
         const recibido = new Date(data.timestamp).getTime();
         const visto = new Date(timestampsVistos[id] || 0).getTime();
 
-        // Solo aplicar si es más nuevo que lo que ya vimos
         if (recibido > visto) {
           timestampsVistos[id] = data.timestamp;
+          origenes[id] = data.origen || null;
           mostrarEstado(id, data.estado, data.texto, data.timestamp);
+          actualizarBotones(id, data.estado);
         }
       }
     });
   });
 };
+
+// Bloquear botón "OK" si no sos el autor del fallo
+function actualizarBotones(id, estado) {
+  const esRojo = estado === 'rojo';
+  const esMiFallo = origenes[id] === deviceId;
+  const botones = document.querySelectorAll(`#${id} .botones button`);
+
+  botones.forEach(btn => {
+    if (esRojo && !esMiFallo && btn.classList.contains('verde-btn')) {
+      btn.disabled = true;  // Solo el autor puede restaurar
+    } else {
+      btn.disabled = false;
+    }
+  });
+}
 
 window.cambiarEstado = cambiarEstado;
