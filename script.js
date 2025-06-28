@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// Configuración de Firebase
+// Configuración Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyCUYhpx2tDjX40Si-DPXWzONa8wqwW9pb8",
   authDomain: "semaforoproductivo.firebaseapp.com",
@@ -11,7 +11,6 @@ const firebaseConfig = {
   appId: "1:273022276004:web:2127523c4a0a6b7884f131"
 };
 
-// Inicializar Firebase
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
@@ -21,11 +20,11 @@ const estadosActuales = {};
 const timestampsVistos = {};
 const origenes = {};
 
-// 🔐 Identificador único del dispositivo
+// ID único del dispositivo
 const deviceId = localStorage.getItem('deviceId') || crypto.randomUUID();
 localStorage.setItem('deviceId', deviceId);
 
-// Mostrar estado visualmente
+// Mostrar estado
 function mostrarEstado(id, color, texto = '', timestamp = '') {
   const maquina = document.getElementById(id);
   const estadoDiv = maquina.querySelector('.estado');
@@ -53,9 +52,12 @@ function mostrarEstado(id, color, texto = '', timestamp = '') {
   }
 
   estadosActuales[id] = color;
+
+  // ✅ Actualiza botones cada vez que cambia algo visual
+  actualizarBotones(id, color);
 }
 
-// Guardar en Firestore
+// Guardar estado en Firestore
 async function guardarEnFirestore(id, estado, texto) {
   const now = new Date().toISOString();
   await setDoc(doc(db, "maquinas", id), {
@@ -68,9 +70,12 @@ async function guardarEnFirestore(id, estado, texto) {
 
 // Cambiar estado desde botones
 async function cambiarEstado(id, color) {
-  // 🚫 Bloqueo: solo el autor puede restablecer desde rojo
-  if (color === 'verde' && origenes[id] && origenes[id] !== deviceId) {
-    alert('Solo el dispositivo que activó la falla puede restablecer esta máquina.');
+  const estadoActual = estadosActuales[id];
+  const origenActual = origenes[id];
+
+  // ❌ BLOQUEO: si intento poner en verde una máquina que no fallé yo
+  if (estadoActual === 'rojo' && color === 'verde' && origenActual && origenActual !== deviceId) {
+    alert('❌ Solo el dispositivo que activó la falla puede restablecer la máquina.');
     return;
   }
 
@@ -92,6 +97,7 @@ async function cambiarEstado(id, color) {
   } else if (color === 'rojo') {
     texto = prompt('Describa el fallo de la máquina:');
     if (!texto) return;
+
     const inicio = Date.now();
     cronos[id] = setInterval(() => {
       const elapsed = Math.floor((Date.now() - inicio) / 1000);
@@ -103,13 +109,9 @@ async function cambiarEstado(id, color) {
 
   await guardarEnFirestore(id, color, texto);
   estadosActuales[id] = color;
-
-  // ✅ Refrescar botones después de cambiar
-  actualizarBotones(id, color);
 }
 
-
-// Escuchar cambios en tiempo real
+// Escuchar Firebase en tiempo real
 window.onload = () => {
   ['maquina1', 'maquina2'].forEach(id => {
     const docRef = doc(db, "maquinas", id);
@@ -123,7 +125,6 @@ window.onload = () => {
           timestampsVistos[id] = data.timestamp;
           origenes[id] = data.origen || null;
           mostrarEstado(id, data.estado, data.texto, data.timestamp);
-          actualizarBotones(id, data.estado);
         }
       }
     });
@@ -138,7 +139,7 @@ function actualizarBotones(id, estado) {
 
   botones.forEach(btn => {
     if (esRojo && !esMiFallo && btn.classList.contains('verde-btn')) {
-      btn.disabled = true;  // Solo el autor puede restaurar
+      btn.disabled = true;
     } else {
       btn.disabled = false;
     }
