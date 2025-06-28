@@ -100,11 +100,10 @@
     </div>
   </main>
 
-  <!-- Firebase SDK -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"></script>
-  <script>
-    // Configuración de Firebase (usá la tuya)
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
     const firebaseConfig = {
       apiKey: "AIzaSyCUYhpx2tDjX40Si-DPXWzONa8wqwW9pb8",
       authDomain: "semaforoproductivo.firebaseapp.com",
@@ -114,28 +113,23 @@
       appId: "1:273022276004:web:2127523c4a0a6b7884f131"
     };
 
-    // Inicializar Firebase
-    const app = firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
-  </script>
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
 
-  <script>
     const cronos = {};
     const tiemposInicio = {};
 
-    // Guardar estado en Firestore
-    function guardarEnFirestore(id, estado, texto, tiempo = '') {
+    async function guardarEnFirestore(id, estado, texto, tiempo = '') {
       const data = {
         estado,
         texto,
         tiempo,
         timestamp: new Date().toISOString()
       };
-      db.collection('maquinas').doc(id).set(data);
+      await setDoc(doc(db, "maquinas", id), data);
     }
 
-    // Cambiar estado y sincronizar
-    function cambiarEstado(id, color, textoManual = null, desdeFirebase = false) {
+    async function cambiarEstado(id, color, textoManual = null, desdeFirebase = false) {
       const maquina = document.getElementById(id);
       const estado = maquina.querySelector('.estado');
       const mensaje = document.getElementById(`mensaje-${id}`);
@@ -163,7 +157,7 @@
             cronometro.textContent = `⏱ Tiempo detenido: ${mins}:${secs}`;
           }, 1000);
         }
-        guardarEnFirestore(id, color, texto);
+        await guardarEnFirestore(id, color, texto);
       }
 
       if (color === 'amarillo' && texto) {
@@ -173,12 +167,12 @@
       }
     }
 
-    // Escuchar cambios en tiempo real de Firestore
     window.onload = () => {
       ['maquina1', 'maquina2'].forEach(id => {
-        db.collection('maquinas').doc(id).onSnapshot(doc => {
-          if (doc.exists) {
-            const data = doc.data();
+        const docRef = doc(db, "maquinas", id);
+        onSnapshot(docRef, (docSnap) => {
+          if (docSnap.exists()) {
+            const data = docSnap.data();
             cambiarEstado(id, data.estado, data.texto, true);
 
             const cronometro = document.getElementById(`cronometro-${id}`);
