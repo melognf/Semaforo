@@ -1,8 +1,7 @@
-// script.js
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-// Tu configuración de Firebase:
 const firebaseConfig = {
   apiKey: "AIzaSyCUYhpx2tDjX40Si-DPXWzONa8wqwW9pb8",
   authDomain: "semaforoproductivo.firebaseapp.com",
@@ -12,19 +11,36 @@ const firebaseConfig = {
   appId: "1:273022276004:web:2127523c4a0a6b7884f131"
 };
 
-// Inicializar Firebase y Firestore
+// Inicializar Firebase
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const auth = getAuth(app);
 
 const cronos = {};
 const tiemposInicio = {};
+let userUid = null;
+
+async function initAuth() {
+  await signInAnonymously(auth);
+  auth.onAuthStateChanged(user => {
+    if (user) {
+      userUid = user.uid;
+      console.log("Usuario autenticado con UID:", userUid);
+    }
+  });
+}
 
 async function guardarEnFirestore(id, estado, texto, tiempo = '') {
+  if (!userUid) {
+    alert("No estás autenticado aún. Intenta recargar.");
+    return;
+  }
   const data = {
     estado,
     texto,
     tiempo,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    uid: userUid
   };
   await setDoc(doc(db, "maquinas", id), data);
 }
@@ -43,6 +59,11 @@ async function cambiarEstado(id, color, textoManual = null, desdeFirebase = fals
   let texto = textoManual;
 
   if (!desdeFirebase) {
+    if (!userUid) {
+      alert("No estás autenticado aún. Espera un momento.");
+      return;
+    }
+
     if (color === 'amarillo') {
       texto = prompt('Describa el problema de advertencia:');
       if (!texto) return;
@@ -68,6 +89,8 @@ async function cambiarEstado(id, color, textoManual = null, desdeFirebase = fals
 }
 
 window.onload = () => {
+  initAuth();
+
   ['maquina1', 'maquina2'].forEach(id => {
     const docRef = doc(db, "maquinas", id);
     onSnapshot(docRef, (docSnap) => {
@@ -89,7 +112,7 @@ window.onload = () => {
       }
     });
   });
-}
+};
 
-// Hacemos pública la función para que los botones onclick la llamen
+// Para que los botones puedan llamar a cambiarEstado globalmente
 window.cambiarEstado = cambiarEstado;
