@@ -16,7 +16,7 @@ header {
   padding: 1rem;
 }
 .maquina {
-  background: white;
+  background: #333;
   padding: 1rem;
   border-radius: 10px;
   box-shadow: 0 0 10px rgba(0,0,0,0.1);
@@ -30,9 +30,9 @@ header {
   margin: 10px auto;
   border: 5px solid #ccc;
 }
-.verde { background: #4CAF50; }
+.verde { background: #11d817; }
 .amarillo { background: #FFC107; animation: parpadeoLento 2s infinite; }
-.rojo { background: #F44336; animation: parpadeoRapido 0.8s infinite; }
+.rojo { background: #c72216; animation: parpadeoRapido 0.8s infinite; }
 
 @keyframes parpadeoLento {
   0%, 100% { opacity: 1; }
@@ -50,11 +50,33 @@ header {
   cursor: pointer;
   font-weight: bold;
 }
-.verde-btn { background: #4CAF50; color: white; }
+.verde-btn { background: #31a335; color: white; }
 .amarillo-btn { background: #FFC107; color: black; }
 .rojo-btn { background: #F44336; color: white; }
 .mensaje, .cronometro {
   margin-top: 10px;
   font-size: 0.9em;
   color: #333;
+}
+
+#mensaje-maquina1.mensaje {
+  color: #ffffff;
+}
+
+#mensaje-maquina2.mensaje {
+  color: #ffffff;
+}
+
+h2 {
+  color: white;
+}
+
+#cronometro-maquina1.cronometro {
+  color: #ffffff;
+  background-color: #222;
+}
+
+#cronometro-maquina2.cronometro {
+  color: #ffffff;
+  background-color: #222;
 }

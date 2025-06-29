@@ -41,14 +41,16 @@ function mostrarEstado(id, color, texto = '', timestamp = '') {
   } else if (color === 'rojo' && texto) {
     mensaje.textContent = `❌ ${texto}`;
     if (timestamp) {
-      const inicio = new Date(timestamp).getTime();
-      cronos[id] = setInterval(() => {
-        const elapsed = Math.floor((Date.now() - inicio) / 1000);
-        const mins = Math.floor(elapsed / 60).toString().padStart(2, '0');
-        const secs = (elapsed % 60).toString().padStart(2, '0');
-        cronometro.textContent = `⏱ Tiempo detenido: ${mins}:${secs}`;
-      }, 1000);
-    }
+  const inicio = new Date(timestamp).getTime();
+  cronos[id] = setInterval(() => {
+    const elapsed = Math.floor((Date.now() - inicio) / 1000);
+    const horas = Math.floor(elapsed / 3600).toString().padStart(2, '0');
+    const mins = Math.floor((elapsed % 3600) / 60).toString().padStart(2, '0');
+    const secs = (elapsed % 60).toString().padStart(2, '0');
+    cronometro.textContent = `⏱ Tiempo detenido: ${horas}:${mins}:${secs}`;
+  }, 1000);
+}
+
   }
 
   estadosActuales[id] = color;
@@ -103,12 +105,14 @@ async function cambiarEstado(id, color) {
     if (!texto) return;
 
     const inicio = Date.now();
-    cronos[id] = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - inicio) / 1000);
-      const mins = Math.floor(elapsed / 60).toString().padStart(2, '0');
-      const secs = (elapsed % 60).toString().padStart(2, '0');
-      cronometro.textContent = `⏱ Tiempo detenido: ${mins}:${secs}`;
-    }, 1000);
+cronos[id] = setInterval(() => {
+  const elapsed = Math.floor((Date.now() - inicio) / 1000);
+  const horas = Math.floor(elapsed / 3600).toString().padStart(2, '0');
+  const mins = Math.floor((elapsed % 3600) / 60).toString().padStart(2, '0');
+  const secs = (elapsed % 60).toString().padStart(2, '0');
+  cronometro.textContent = `⏱ Tiempo detenido: ${horas}:${mins}:${secs}`;
+}, 1000);
+
   }
 
   await guardarEnFirestore(id, color, texto);
