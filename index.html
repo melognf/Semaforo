@@ -5,37 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Panel de Control - Línea de Producción</title>
   <script>
-(function () {
-  var KEY  = 'gate_ok_v1';
-  var PASS = 'chespirito'; // ← tu clave
-
-  // Si ya validaste en esta pestaña, seguí
-  if (sessionStorage.getItem(KEY) === '1') return;
-
-  // Pedir clave al cargar
-  var v = '';
-  try { v = (prompt('Ingrese la contraseña para acceder:') || '').normalize('NFKC').trim(); } catch (e) {}
-
-  if (v && v.toLowerCase() === PASS.toLowerCase()) {
-    sessionStorage.setItem(KEY, '1');
-    return; // deja cargar la página
+if (!sessionStorage.getItem('gate_ok_v1')) {
+  var v = (prompt('Ingrese la contraseña:') || '').trim().toLowerCase();
+  if (v === 'chespirito') {
+    sessionStorage.setItem('gate_ok_v1','1'); // válido hasta cerrar la pestaña
+  } else {
+    document.write('<h2 style="text-align:center;color:red">Acceso denegado</h2><p style="text-align:center"><button onclick="location.reload()">Reintentar</button></p>');
+    throw 0; // corta la carga del resto
   }
-
-  // Denegado / bloqueado: pantalla simple con Reintentar
-  document.open();
-  document.write(
-    '<!doctype html><meta charset="utf-8"><title>Acceso denegado</title>' +
-    '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0b0d10;color:#fff;font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;">' +
-      '<div style="text-align:center">' +
-        '<h2 style="margin:0 0 8px;">Acceso denegado</h2>' +
-        '<p style="opacity:.85;margin:0 0 12px;">Toque "Reintentar" para ingresar la contraseña.</p>' +
-        '<button id="retry" style="padding:10px 16px;border:0;border-radius:999px;background:#22c55e;color:#0b0d10;font-weight:600;cursor:pointer;">Reintentar</button>' +
-      '</div>' +
-    '</div>' +
-    '<script>document.getElementById("retry").addEventListener("click", function(){ location.reload(); });<\/script>'
-  );
-  document.close();
-})();
+}
 </script>
 
   <link rel="stylesheet" href="styles.css">
