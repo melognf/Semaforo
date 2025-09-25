@@ -243,8 +243,15 @@ ORDEN.forEach(async n => {
 });
 
 // ===== Mostrar controles con interacción y ocultar automáticamente =====
-const SHOW_MS = 4000;                     // tiempo visible luego de tocar/entrar
-const hideTimers = {};                    // timers por tarjeta
+// ===== Mostrar controles con interacción y ocultar automáticamente =====
+// const SHOW_MS = 4000;   // <-- QUITALA
+const BASE_SHOW_MS   = 4000;   // PC / no táctil
+const MOBILE_SHOW_MS = 10000;  // móvil (10 s)
+const hideTimers = {};
+
+const isMobile = () => window.matchMedia('(pointer: coarse)').matches;
+const getShowMs = () => (isMobile() ? MOBILE_SHOW_MS : BASE_SHOW_MS);
+                    // timers por tarjeta
 
 function forceShowControls(card){
   if (!card.classList.contains('compact')) return; // solo aplica en verde
@@ -252,8 +259,9 @@ function forceShowControls(card){
   clearTimeout(hideTimers[card.id]);
   hideTimers[card.id] = setTimeout(() => {
     card.classList.remove('show-controls');
-  }, SHOW_MS);
+  }, getShowMs()); // <-- ahora depende del dispositivo
 }
+
 
 function attachRevealHandlers(){
   document.querySelectorAll('.card').forEach(card => {
@@ -266,10 +274,12 @@ function attachRevealHandlers(){
 
     // Touch / click: un toque muestra/renueva el timer.
     // Si se toca un botón, no togglear la tarjeta.
-    card.addEventListener('click', (e) => {
-      if (e.target.closest('.botones')) return; // dejar que el botón actúe
-      forceShowControls(card);
-    });
+    // card.addEventListener('click', (e) => {
+card.addEventListener('pointerdown', (e) => {
+  if (e.target.closest('.botones')) return;
+  forceShowControls(card);
+});
+
 
     // Accesibilidad: al enfocar con teclado también mostrar
     card.addEventListener('focusin', () => forceShowControls(card));

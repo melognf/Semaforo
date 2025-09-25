@@ -450,3 +450,40 @@ button.rojo-btn{ background:#F44336 }
     margin-top: 10px; font-size: 12px; color: #cbd5e1;
   }
 }
+
+@media (max-width: 600px){
+  /* Asegurar el contenedor centrado y sin “corrimiento” */
+  #summary-mobile{
+    display: grid;
+    place-items: center;
+    min-height: calc(100dvh - 56px);
+    padding: 0;             /* el padding ya lo tiene .panel */
+    width: 100%;
+  }
+
+  .summary-card{
+    margin: 0 auto;
+    width: min(540px, calc(100vw - 32px)); /* 32px = 16px de padding por lado en .panel */
+  }
+}
+
+@media (max-width: 600px){
+  .summary-kpis{
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+  .kpi{ padding: 8px 6px; }
+  .kpi .n{ font-size: clamp(16px, 5vw, 22px); }
+  .kpi > div:last-child{
+    font-size: 12px;          /* etiqueta (“OK”, “Advertencia”, “Fallas”) */
+    line-height: 1.1;
+    white-space: normal;      /* permitir salto */
+    word-break: keep-all;     /* no cortar palabras raramente */
+    text-wrap: balance;       /* si el navegador lo soporta, mejor salto */
+  }
+
+  /* Ultra angosto: 2 columnas para que no se desborde “Advertencia” */
+  @media (max-width: 360px){
+    .summary-kpis{ grid-template-columns: repeat(2, 1fr); }
+  }
+}
