@@ -487,3 +487,25 @@ button.rojo-btn{ background:#F44336 }
     .summary-kpis{ grid-template-columns: repeat(2, 1fr); }
   }
 }
+
+@media (max-width: 600px){
+  /* El wrapper ocupa todo el ancho del contenedor y centra su contenido */
+  #summary-mobile{
+    display: grid;
+    justify-items: center;      /* centra horizontal */
+    align-items: center;        /* centra vertical */
+    min-height: calc(100dvh - 56px);
+    width: 100%;
+    padding: 0;                 /* el padding lo pone .panel */
+  }
+
+  /* La tarjeta usa el ancho disponible del contenedor, sin vw */
+  .summary-card{
+    width: 100%;
+    max-width: 540px;           /* tope para no estirar demasiado */
+    margin: 0 auto;             /* centra por si acaso */
+  }
+
+  /* Por si alguna regla previa provocó overflow horizontal */
+  .panel{ overflow-x: hidden; }
+}
