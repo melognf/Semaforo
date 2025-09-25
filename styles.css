@@ -79,7 +79,6 @@ h1{margin:0; font-weight:700; font-size:clamp(18px,2.8vw,24px)}
   border:2px solid #fff;           /* ✅ borde blanco */
   box-shadow: 0 0 0 2px #d9d9d9;   /* aro exterior gris claro opcional */
 }
-
 .card.maquina .estado.verde{ background:var(--verde) }
 .card.maquina .estado.amarillo{ background:var(--amarillo); animation: parpadeoLento 2s infinite }
 .card.maquina .estado.rojo{ background:var(--rojo); animation: parpadeoRapido .8s infinite }
@@ -97,14 +96,10 @@ h1{margin:0; font-weight:700; font-size:clamp(18px,2.8vw,24px)}
   margin:10px 14px;
   position:relative;
 }
-
-/* Cinta: SOLO color base. Las rayas van en ::after para evitar bugs de background animado */
 .card.transporte .cinta{
   position:absolute; inset:0;
   background-color:#0a2f49;   /* se sobrescribe por estado */
 }
-
-/* Rayas animadas en una capa aparte, súper contrastadas */
 .card.transporte .cinta::after{
   content:"";
   position:absolute; inset:0;
@@ -120,35 +115,21 @@ h1{margin:0; font-weight:700; font-size:clamp(18px,2.8vw,24px)}
   pointer-events:none;
 }
 
-/* --- Estados (color base + animación) --- */
-.card.transporte .trayecto.verde .cinta{
-  background-color: var(--verde);
-}
-.card.transporte .trayecto.verde .cinta::after{
-  animation: conveyor 0.75s linear infinite;
-}
+/* Estados del transporte */
+.card.transporte .trayecto.verde .cinta{ background-color: var(--verde); }
+.card.transporte .trayecto.verde .cinta::after{ animation: conveyor 0.75s linear infinite; }
 
-.card.transporte .trayecto.amarillo .cinta{
-  background-color: var(--amarillo);
-}
-.card.transporte .trayecto.amarillo .cinta::after{
-  /* pulso visible, sin desplazamiento de la cinta */
-  animation: pulso 1.2s ease-in-out infinite;
-}
+.card.transporte .trayecto.amarillo .cinta{ background-color: var(--amarillo); }
+.card.transporte .trayecto.amarillo .cinta::after{ animation: pulso 1.2s ease-in-out infinite; }
 
-.card.transporte .trayecto.rojo .cinta{
-  background-color: var(--rojo);
-}
-.card.transporte .trayecto.rojo .cinta::after{
-  animation: none;   /* parado */
-}
+.card.transporte .trayecto.rojo .cinta{ background-color: var(--rojo); }
+.card.transporte .trayecto.rojo .cinta::after{ animation: none; } /* parado */
 
-/* --- Animaciones --- */
+/* Animaciones transporte */
 @keyframes conveyor{
   from { background-position:   0 0; }
   to   { background-position: 24px 0; }  /* desplaza EXACTO 1 período */
 }
-
 @keyframes pulso{
   0%,100%{ filter:brightness(1) }
   50%    { filter:brightness(.65) }
@@ -158,7 +139,6 @@ h1{margin:0; font-weight:700; font-size:clamp(18px,2.8vw,24px)}
 @media (prefers-reduced-motion: reduce){
   .card.transporte .cinta::after{ animation: none !important; }
 }
-
 
 /* ===== Mensaje + Cronómetro ===== */
 .msg, .cron{
@@ -172,6 +152,19 @@ h1{margin:0; font-weight:700; font-size:clamp(18px,2.8vw,24px)}
   border-radius:8px;
   padding:6px 8px;
   display:inline-block;
+}
+
+/* Ocultar completamente mensaje/cronómetro cuando están vacíos (evita el "punto negro") */
+.msg:empty,
+.cron:empty{
+  max-height: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  display: block;
 }
 
 /* ===== Botones ===== */
@@ -192,139 +185,45 @@ button.rojo-btn{ background:#F44336 }
   opacity:.55; cursor:not-allowed; filter:grayscale(.15);
 }
 
-/* ===== Pequeñas mejoras responsivas ===== */
-@media (max-width:420px){
-  .card{ padding:12px }
-  .card.maquina .estado{ width:78px; height:78px; border-width:5px }
-}
-
-/* Centrado vertical del contenido en tarjetas de TRANSPORTE */
-.card.transporte{
-  display: grid;
-  grid-template-rows: auto 1fr auto auto; /* 1: título | 2: contenido | 3: botones | 4: msg/cron */
-  row-gap: 10px;
-  min-height: 240px; /* ajustá a gusto: 220–260px */
-}
-
-/* La cinta (trayecto) queda en la fila de contenido y centrada */
-.card.transporte .trayecto{
-  grid-row: 2;
-  width: 85%;           /* opcional: que no toque bordes */
-  margin: 0 auto;       /* centra horizontal */
-}
-
-/* Botones y mensajes centrados */
-.card.transporte .botones,
-.card.transporte .msg,
-.card.transporte .cron{
-  justify-self: center;
-}
-
-/* Un poco de aire arriba y abajo para que no quede “pegado” */
-.card.transporte .botones{ margin-top: 4px; }
-.card.transporte .msg,
-.card.transporte .cron{ margin-top: 6px; }
-
-/* En pantallas chicas, un poco más compacto */
-@media (max-width: 420px){
-  .card.transporte{ min-height: 220px; }
-  .card.transporte .trayecto{ width: 90%; }
-}
-
-/* Ocultar con clase utilitaria */
+/* Utilitaria para ocultar el botón Amarillo en fallo */
 .botones .oculto{ display:none !important; }
 
-
-
-/* Pequeño toque: en transporte, que la cinta mantenga el foco visual */
-.card.transporte.compact .trayecto{ margin-top: 6px; margin-bottom: 6px; }
-
-/* ===== Centrados y transición según estado de controles ===== */
-
-/* MÁQUINAS: usamos grid para centrar el círculo en compacto y subirlo cuando aparecen botones */
-.card.maquina{
+/* ===== Layout de tarjetas y centrado del indicador ===== */
+.card.maquina,
+.card.transporte{
   display: grid;
   grid-template-rows: auto 1fr auto auto; /* 1: título | 2: indicador | 3: botones | 4: msg/cron */
   row-gap: 10px;
-  min-height: 240px; /* ajustá a gusto */
+  min-height: 240px;
 }
 .card.maquina .estado{
   grid-row: 2;
   justify-self: center;
   align-self: center;
-  transition: transform .22s ease, margin .22s ease;
-}
-/* Cuando mostramos controles, subimos un poco el indicador para dejar aire a los botones */
-.card.maquina.compact.show-controls .estado{
-  align-self: start;
-  margin-top: 6px;
-}
-
-/* TRANSPORTES: ya tenés grid; aseguramos centrado del track y desplazamiento suave */
-.card.transporte{
-  display: grid;
-  grid-template-rows: auto 1fr auto auto; /* 1: título | 2: trayecto | 3: botones | 4: msg/cron */
-  row-gap: 10px;
-  min-height: 240px;
+  /* movimiento suave sin reflow */
+  --lift: 0px;
+  transform: translateY(var(--lift));
+  transition: transform .38s cubic-bezier(.22,.61,.36,1);
 }
 .card.transporte .trayecto{
   grid-row: 2;
   width: 85%;
   margin: 0 auto;
   align-self: center;
-  transition: transform .22s ease, margin .22s ease;
+  /* movimiento suave sin reflow */
+  --lift: 0px;
+  transform: translateY(var(--lift));
+  transition: transform .38s cubic-bezier(.22,.61,.36,1);
 }
-/* Al mostrar controles, el track sube un poco para hacer espacio a los botones */
-.card.transporte.compact.show-controls .trayecto{
-  align-self: start;
-  margin-top: 6px;
-}
-
-/* Responsive finos */
-@media (max-width: 420px){
-  .card.maquina, .card.transporte{ min-height: 220px; }
-  .card.transporte .trayecto{ width: 90%; }
+.card.transporte .botones,
+.card.transporte .msg,
+.card.transporte .cron{
+  justify-self: center;
 }
 
-/* ===== Aparición suave de controles en modo compacto (VERDE) ===== */
-/* Estado oculto (mantiene el layout sin saltos) */
-.card.compact .botones,
-.card.compact .msg,
-.card.compact .cron{
-  max-height: 0;
-  opacity: 0;
-  transform: translateY(6px);
-  overflow: clip;              /* oculta contenido sin forzar reflow */
-  pointer-events: none;        /* no clickeables mientras están ocultos */
-  transition:
-    max-height .45s cubic-bezier(.22,.61,.36,1),
-    opacity    .28s ease,
-    transform  .28s ease;
-}
-
-/* Mostrar (PC: hover) */
-.card.compact:hover .botones,
-.card.compact:hover .msg,
-.card.compact:hover .cron{
-  max-height: 200px;           /* suficiente para botones + msg/cron */
-  opacity: 1;
-  transform: translateY(0);
-  pointer-events: auto;
-}
-
-/* Mostrar (móvil/teclado): cuando el JS agrega .show-controls */
-.card.compact.show-controls .botones,
-.card.compact.show-controls .msg,
-.card.compact.show-controls .cron{
-  max-height: 200px;
-  opacity: 1;
-  transform: translateY(0);
-  pointer-events: auto;
-}
-
-.card.compact .botones,
-.card.compact .msg,
-.card.compact .cron{ transition-delay: 0s, .05s, .05s; }     /* max-height sin delay; opacidad/translate con 50ms */
+/* Al mostrar controles (compact + show-controls) elevamos un toque el indicador */
+.card.maquina.compact.show-controls .estado{ --lift: -16px; }
+.card.transporte.compact.show-controls .trayecto{ --lift: -16px; }
 
 /* ===== Aparición suave de controles en modo compacto (VERDE) ===== */
 /* Estado oculto (sin saltos de layout) */
@@ -341,13 +240,10 @@ button.rojo-btn{ background:#F44336 }
     max-height .60s cubic-bezier(.22,.61,.36,1),
     opacity    .35s ease,
     transform  .35s ease,
-    visibility 0s linear .35s; /* se hace visible cuando terminó el fade */
+    visibility 0s linear .35s; /* visible cuando terminó el fade */
 }
 
-/* Mostrar (PC: hover) */
-.card.compact:hover .botones,
-.card.compact:hover .msg,
-.card.compact:hover .cron,
+/* Mostrar por clase (lo maneja JS/temporizador) */
 .card.compact.show-controls .botones,
 .card.compact.show-controls .msg,
 .card.compact.show-controls .cron{
@@ -360,53 +256,49 @@ button.rojo-btn{ background:#F44336 }
     max-height .60s cubic-bezier(.22,.61,.36,1),
     opacity    .35s ease,
     transform  .35s ease,
-    visibility 0s;            /* visible inmediatamente al mostrar */
+    visibility 0s;
 }
 
-/* Botones primero abren el espacio y luego aparecen: pequeño delay opcional */
-.card.compact .botones,
-.card.compact .msg,
-.card.compact .cron{
-  transition-delay: 0s, .05s, .05s, .35s; /* max-height sin delay; fade/slide con 50ms */
-}
-.card.compact:hover .botones,
-.card.compact:hover .msg,
-.card.compact:hover .cron,
-.card.compact.show-controls .botones,
-.card.compact.show-controls .msg,
-.card.compact.show-controls .cron{
-  transition-delay: 0s, 0s, 0s, 0s;
+/* Mostrar por hover SOLO en desktop (evita "hover pegado" en móvil) */
+@media (hover: hover) and (pointer: fine){
+  .card.compact:hover .botones,
+  .card.compact:hover .msg,
+  .card.compact:hover .cron{
+    max-height: 220px;
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+    visibility: visible;
+    transition:
+      max-height .60s cubic-bezier(.22,.61,.36,1),
+      opacity    .35s ease,
+      transform  .35s ease,
+      visibility 0s;
+  }
 }
 
-/* Ocultar completamente mensaje/cronómetro cuando están vacíos (evita el "punto negro") */
-.msg:empty,
-.cron:empty{
-  max-height: 0 !important;
-  padding: 0 !important;
-  border: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  opacity: 0 !important;
-  visibility: hidden !important;
-  display: block; /* mantené block para que las transiciones de los hermanos no salten */
+/* ===== Pequeñas mejoras responsivas ===== */
+@media (max-width:420px){
+  .card{ padding:12px }
+  .card.maquina .estado{ width:78px; height:78px; border-width:5px }
+  .card.transporte{ min-height: 220px; }
+  .card.transporte .trayecto{ width: 90%; }
 }
 
 /* ===== Modo resumen móvil (sin scroll inicial) ===== */
 @media (max-width: 600px){
   body.mobile-summary .panel { padding-top: 0; }
-
-  /* Ocultar la grilla cuando estamos en resumen móvil */
   body.mobile-summary #grid-linea{ display:none; }
 
   /* Contenedor del resumen */
-  #summary-mobile{
-    display: none; /* por defecto oculto en desktop o cuando no aplica */
-  }
+  #summary-mobile{ display: none; }
   body.mobile-summary #summary-mobile{
     display: grid;
-    place-items: center;
-    min-height: calc(100dvh - 56px); /* casi pantalla entera menos header */
-    padding: 16px;
+    justify-items: center;
+    align-items: center;
+    min-height: calc(100dvh - 56px);
+    width: 100%;
+    padding: 0;                  /* el padding lo aporta .panel */
   }
 
   .summary-card{
@@ -415,25 +307,36 @@ button.rojo-btn{ background:#F44336 }
     border-radius: 14px;
     box-shadow: var(--shadow);
     padding: 16px;
-    width: min(540px, 92vw);
+    width: 100%;
+    max-width: 540px;
+    margin: 0 auto;
     color: #fff;
     text-align: center;
   }
+
   .summary-title{
     font-size: 18px; font-weight: 800; margin: 0 0 10px;
   }
+
   .summary-kpis{
-    display: grid; grid-template-columns: repeat(3,1fr); gap: 10px;
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
     margin: 10px 0 6px;
   }
   .kpi{
-    border-radius: 12px; padding: 10px 8px;
+    border-radius: 12px; padding: 8px 6px;
     background: #0a2f49; border:1px solid #0d4066;
   }
-  .kpi .n{ font-size: 20px; font-weight: 800; line-height: 1; }
+  .kpi .n{ font-size: clamp(16px, 5vw, 22px); font-weight: 800; line-height: 1; }
   .kpi.ok   .n{ color: var(--verde); }
-  .kpi.warn .n{ color: #805d00; }  /* contraste sobre la tarjeta */
+  .kpi.warn .n{ color: #805d00; }
   .kpi.bad  .n{ color: #ff6b6b; }
+  .kpi > div:last-child{
+    font-size: 12px;
+    line-height: 1.1;
+    white-space: normal;
+    word-break: keep-all;
+    text-wrap: balance;
+  }
 
   .summary-list{
     display:flex; flex-wrap:wrap; gap:6px; justify-content:center;
@@ -449,63 +352,25 @@ button.rojo-btn{ background:#F44336 }
   .summary-footer{
     margin-top: 10px; font-size: 12px; color: #cbd5e1;
   }
-}
-
-@media (max-width: 600px){
-  /* Asegurar el contenedor centrado y sin “corrimiento” */
-  #summary-mobile{
-    display: grid;
-    place-items: center;
-    min-height: calc(100dvh - 56px);
-    padding: 0;             /* el padding ya lo tiene .panel */
-    width: 100%;
-  }
-
-  .summary-card{
-    margin: 0 auto;
-    width: min(540px, calc(100vw - 32px)); /* 32px = 16px de padding por lado en .panel */
-  }
-}
-
-@media (max-width: 600px){
-  .summary-kpis{
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
-  }
-  .kpi{ padding: 8px 6px; }
-  .kpi .n{ font-size: clamp(16px, 5vw, 22px); }
-  .kpi > div:last-child{
-    font-size: 12px;          /* etiqueta (“OK”, “Advertencia”, “Fallas”) */
-    line-height: 1.1;
-    white-space: normal;      /* permitir salto */
-    word-break: keep-all;     /* no cortar palabras raramente */
-    text-wrap: balance;       /* si el navegador lo soporta, mejor salto */
-  }
-
-  /* Ultra angosto: 2 columnas para que no se desborde “Advertencia” */
-  @media (max-width: 360px){
-    .summary-kpis{ grid-template-columns: repeat(2, 1fr); }
-  }
-}
-
-@media (max-width: 600px){
-  /* El wrapper ocupa todo el ancho del contenedor y centra su contenido */
-  #summary-mobile{
-    display: grid;
-    justify-items: center;      /* centra horizontal */
-    align-items: center;        /* centra vertical */
-    min-height: calc(100dvh - 56px);
-    width: 100%;
-    padding: 0;                 /* el padding lo pone .panel */
-  }
-
-  /* La tarjeta usa el ancho disponible del contenedor, sin vw */
-  .summary-card{
-    width: 100%;
-    max-width: 540px;           /* tope para no estirar demasiado */
-    margin: 0 auto;             /* centra por si acaso */
-  }
 
   /* Por si alguna regla previa provocó overflow horizontal */
   .panel{ overflow-x: hidden; }
+}
+
+/* Ultra angosto: 2 columnas para que no se desborde “Advertencia” */
+@media (max-width: 360px){
+  .summary-kpis{ grid-template-columns: repeat(2, 1fr); }
+}
+
+/* Ocultar SIEMPRE el resumen por defecto (todas las pantallas) */
+#summary-mobile{ display: none; }
+
+/* Mostrar el resumen SOLO en móvil cuando hay body.mobile-summary */
+@media (max-width: 600px){
+  body.mobile-summary #summary-mobile{ display: grid; }
+}
+
+/* Ocultar el botón "Reportar fallo / advertencia" en desktop */
+@media (hover: hover) and (pointer: fine){
+  #summary-mobile .summary-actions{ display: none; }
 }
