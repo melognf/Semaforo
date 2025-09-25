@@ -1,5 +1,8 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import {
+  getFirestore, doc, setDoc, onSnapshot,
+  collection, enableIndexedDbPersistence
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 /* ========= Firebase ========= */
 const firebaseConfig = {
@@ -13,10 +16,10 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db  = getFirestore(app);
 
-/* ========= Orden intercalado EXACTO =========
-   - type: 'maquina' | 'transporte'
-   - id: usado como docId en 'equipos'
-============================================= */
+// Habilitamos cache offline (si falla por múltiples pestañas, seguimos igual)
+enableIndexedDbPersistence(db).catch(() => { /* no-op */ });
+
+/* ========= Orden intercalado EXACTO ========= */
 const ORDEN = [
   { id:'depaletizadora',                label:'DEPALETIZADORA',                    type:'maquina'     },
   { id:'transporte_aereo',              label:'TRANSPORTE AÉREO',                  type:'transporte'  },
@@ -89,6 +92,9 @@ function crearCardTransporte({id, label}){
 function montarUI(){
   ORDEN.forEach(n => grid.appendChild(crearCard(n)));
 
+  // Feedback optimista: todo en verde para 1er pintado inmediato
+  ORDEN.forEach(n => mostrarEstado(n.id, 'verde', '', ''));
+
   // Delegación de eventos para todos los botones
   document.body.addEventListener('click', async (e) => {
     const btn = e.target.closest('button[data-id][data-color]');
@@ -150,7 +156,7 @@ function mostrarEstado(id, color, texto = '', timestamp = ''){
   actualizarBotones(id, color);
 
   // ===== Resumen móvil: actualizar vista cada vez que cambia un estado =====
-  updateMobileSummary();
+  updateMobileSummaryDebounced();
 }
 
 /* ========= Firestore ========= */
@@ -215,43 +221,38 @@ function actualizarBotones(id, estado){
   if (btnFail) btnFail.disabled = false;
 }
 
-function suscribir(id){
-  const ref = doc(db, 'equipos', id);
-  onSnapshot(ref, (snap) => {
-    if (!snap.exists()) return;
-    const data = snap.data();
-    const recibido = new Date(data.timestamp || 0).getTime();
-    const visto = new Date(timestampsVistos[id] || 0).getTime();
-    if (recibido > visto) {
-      timestampsVistos[id] = data.timestamp;
-      origenes[id] = data.origen || null;
-      mostrarEstado(id, data.estado, data.texto, data.timestamp);
-    }
-  });
+/* ========= Suscripción ÚNICA a la colección ========= */
+function suscribirColeccion(){
+  // Guardamos 'tipo' por si lo necesitás luego (no esperamos la promesa para no frenar la UI)
+  ORDEN.forEach(n => { setDoc(doc(db,'equipos', n.id), { tipo: n.type }, { merge: true }); });
 
-  // Estado inicial (opcional: verde)
-  mostrarEstado(id, estadosActuales[id] || 'verde', '', '');
+  const ref = collection(db, 'equipos');
+  onSnapshot(ref, (snap) => {
+    snap.docChanges().forEach((chg) => {
+      const id   = chg.doc.id;
+      const data = chg.doc.data() || {};
+      // timestamp/origen locales
+      timestampsVistos[id] = data.timestamp || timestampsVistos[id] || '';
+      origenes[id] = data.origen || null;
+
+      // Pintamos (si no viene estado, asumimos verde)
+      mostrarEstado(id, data.estado || 'verde', data.texto || '', data.timestamp || '');
+    });
+  });
 }
 
 /* ========= Bootstrap ========= */
 montarUI();
 
-// marca de tipo (opcional, para auditoría/compatibilidad futura)
-ORDEN.forEach(async n => {
-  await setDoc(doc(db,'equipos', n.id), { tipo: n.type }, { merge: true });
-  suscribir(n.id);
-});
+// Mostrar el resumen ASAP (antes de conectar)
+updateMobileSummary();
 
-// ===== Mostrar controles con interacción y ocultar automáticamente =====
-// ===== Mostrar controles con interacción y ocultar automáticamente =====
-// const SHOW_MS = 4000;   // <-- QUITALA
+// Revelado de controles y auto-ocultado (10s móvil, 4s desktop)
 const BASE_SHOW_MS   = 4000;   // PC / no táctil
 const MOBILE_SHOW_MS = 10000;  // móvil (10 s)
 const hideTimers = {};
-
 const isMobile = () => window.matchMedia('(pointer: coarse)').matches;
 const getShowMs = () => (isMobile() ? MOBILE_SHOW_MS : BASE_SHOW_MS);
-                    // timers por tarjeta
 
 function forceShowControls(card){
   if (!card.classList.contains('compact')) return; // solo aplica en verde
@@ -259,9 +260,8 @@ function forceShowControls(card){
   clearTimeout(hideTimers[card.id]);
   hideTimers[card.id] = setTimeout(() => {
     card.classList.remove('show-controls');
-  }, getShowMs()); // <-- ahora depende del dispositivo
+  }, getShowMs());
 }
-
 
 function attachRevealHandlers(){
   document.querySelectorAll('.card').forEach(card => {
@@ -272,28 +272,25 @@ function attachRevealHandlers(){
       card.classList.remove('show-controls');
     });
 
-    // Touch / click: un toque muestra/renueva el timer.
-    // Si se toca un botón, no togglear la tarjeta.
-    // card.addEventListener('click', (e) => {
-card.addEventListener('pointerdown', (e) => {
-  if (e.target.closest('.botones')) return;
-  forceShowControls(card);
-});
-
+    // Touch: al tocar, mostrar; y al soltar rearmar timer
+    card.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('.botones')) return;
+      clearTimeout(hideTimers[card.id]);
+      forceShowControls(card);
+    });
+    card.addEventListener('pointerup',   () => forceShowControls(card));
 
     // Accesibilidad: al enfocar con teclado también mostrar
     card.addEventListener('focusin', () => forceShowControls(card));
   });
 }
-
-// Llamalo una vez al armar la UI
 attachRevealHandlers();
+
+// Conectamos en tiempo real (una sola subscripción)
+suscribirColeccion();
 
 /* ================================
    ===== Resumen móvil (NEW) =====
-   - Sin scroll si todo está en verde (≤600px)
-   - Si hay incidencias, mostramos tarjetas y hacemos scroll
-   - >>> intervención desde resumen (botón y chips clickeables)
 ==================================*/
 const isSmallScreen = window.matchMedia('(max-width: 600px)');
 
@@ -322,15 +319,10 @@ function ensureSummaryShell(){
   `;
   document.querySelector('.panel')?.insertBefore(wrap, document.getElementById('grid-linea'));
 
-  // >>> listeners del resumen (una sola vez)
+  // listeners del resumen
   wrap.addEventListener('click', (e) => {
-    // Chips clickeables (cuando haya incidencias)
     const chip = e.target.closest('.chip[data-id]');
-    if (chip) {
-      enterInterventionMode(chip.dataset.id);
-      return;
-    }
-    // Botón intervenir (cuando todo está en verde)
+    if (chip) { enterInterventionMode(chip.dataset.id); return; }
     if (e.target.id === 'btn-intervenir') {
       enterInterventionMode(firstIssueId() || ORDEN[0].id);
     }
@@ -346,14 +338,11 @@ function firstIssueId(){
 }
 
 function enterInterventionMode(targetId){
-  // Salir del resumen, mostrar grilla
   document.body.classList.remove('mobile-summary');
-  // Abrir controles y scroll a la tarjeta objetivo
   const id = targetId || ORDEN[0].id;
   const el = document.getElementById(`card-${id}`);
   if (!el) return;
-  // Mostramos controles aunque esté en verde (compacto)
-  el.classList.add('show-controls');
+  el.classList.add('show-controls');  // mostrar controles aunque esté en verde
   setTimeout(() => {
     el.scrollIntoView({ behavior:'smooth', block:'start' });
   }, 0);
@@ -363,6 +352,13 @@ function scrollToIssue(){
   const id = firstIssueId();
   if (!id) return;
   enterInterventionMode(id);
+}
+
+/* Debounce para evitar repintar el resumen demasiadas veces seguidas */
+let smTo;
+function updateMobileSummaryDebounced(){
+  clearTimeout(smTo);
+  smTo = setTimeout(updateMobileSummary, 50);
 }
 
 function updateMobileSummary(){
@@ -390,7 +386,7 @@ function updateMobileSummary(){
   if ($warn) $warn.textContent = warn;
   if ($bad)  $bad.textContent = bad;
 
-  // Chips (clickeables a tarjeta)
+  // Chips clickeables
   const list = document.getElementById('summary-chips');
   if (list){
     list.innerHTML = chips
