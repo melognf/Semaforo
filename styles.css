@@ -1,82 +1,452 @@
-body {
-  font-family: Arial, sans-serif;
-  margin: 0;
-  background: #f4f4f4;
+/* ===== Base visual ===== */
+:root{
+  --bg:#f4f4f4;
+  --panel:#222;
+  --card:#333;              /* fondo de MÁQUINAS */
+  --card-transp:#0b3a5c;    /* fondo de TRANSPORTES (diferente y bien contrastado) */
+  --ink:#fff;
+  --muted:#cbd5e1;
+
+  --verde:#11d817;
+  --amarillo:#FFC107;
+  --rojo:#c72216;
+
+  --borde:#3d3d3d;
+  --borde-transp:#0e4c79;
+  --shadow:0 10px 24px rgba(0,0,0,.25);
 }
-header {
-  background: #222;
-  color: white;
-  padding: 10px;
-  text-align: center;
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--ink);
+  font:16px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial;
 }
-.panel {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+
+header{
+  background:var(--panel);
+  padding:12px 16px;
+  text-align:center;
+  border-bottom:1px solid #111;
+}
+h1{margin:0; font-weight:700; font-size:clamp(18px,2.8vw,24px)}
+
+.panel{
+  padding:18px 16px 40px;
+  max-width:1200px;
+  margin:0 auto;
+}
+
+.grid{
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 1rem;
-  padding: 1rem;
-}
-.maquina {
-  background: #333;
-  padding: 1rem;
-  border-radius: 10px;
-  box-shadow: 0 0 10px rgba(0,0,0,0.1);
-  text-align: center;
-  position: relative;
-}
-.estado {
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  margin: 10px auto;
-  border: 5px solid #ccc;
-}
-.verde { background: #11d817; }
-.amarillo { background: #FFC107; animation: parpadeoLento 2s infinite; }
-.rojo { background: #c72216; animation: parpadeoRapido 0.8s infinite; }
-
-@keyframes parpadeoLento {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
-}
-@keyframes parpadeoRapido {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.1; }
-}
-.botones button {
-  margin: 5px;
-  padding: 10px;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  font-weight: bold;
-}
-.verde-btn { background: #31a335; color: white; }
-.amarillo-btn { background: #FFC107; color: black; }
-.rojo-btn { background: #F44336; color: white; }
-.mensaje, .cronometro {
-  margin-top: 10px;
-  font-size: 0.9em;
-  color: #333;
 }
 
-#mensaje-maquina1.mensaje {
-  color: #ffffff;
+/* ===== Card común ===== */
+.card{
+  border-radius:12px;
+  box-shadow: var(--shadow);
+  padding:14px;
+  position:relative;
+  text-align:center;
+}
+.card h3{
+  margin:0 0 10px;
+  font-size:18px;
+  font-weight:700;
+  color:#fff;
 }
 
-#mensaje-maquina2.mensaje {
-  color: #ffffff;
+/* Diferencias de fondo y borde por tipo */
+.card.maquina{
+  background:var(--card);
+  border:1px solid var(--borde);
+}
+.card.transporte{
+  background:var(--card-transp);
+  border:1px solid var(--borde-transp);
 }
 
-h2 {
-  color: white;
+/* ===== Máquinas (luz circular) ===== */
+.card.maquina .estado{
+  width:90px; height:90px;
+  border-radius:50%;
+  margin:10px auto 8px;
+  background:#666;                 /* se sobreescribe con verde/amarillo/rojo */
+  border:2px solid #fff;           /* ✅ borde blanco */
+  box-shadow: 0 0 0 2px #d9d9d9;   /* aro exterior gris claro opcional */
 }
 
-#cronometro-maquina1.cronometro {
-  color: #ffffff;
-  background-color: #222;
+.card.maquina .estado.verde{ background:var(--verde) }
+.card.maquina .estado.amarillo{ background:var(--amarillo); animation: parpadeoLento 2s infinite }
+.card.maquina .estado.rojo{ background:var(--rojo); animation: parpadeoRapido .8s infinite }
+
+@keyframes parpadeoLento{ 0%,100%{opacity:1} 50%{opacity:.35} }
+@keyframes parpadeoRapido{ 0%,100%{opacity:1} 50%{opacity:.12} }
+
+/* ===== Transportes (cinta/track) ===== */
+.card.transporte .trayecto{
+  height:24px;
+  border-radius:999px;
+  background:#0a2f49;        /* base más oscura para contraste */
+  border:2px solid #0d4066;
+  overflow:hidden;
+  margin:10px 14px;
+  position:relative;
 }
 
-#cronometro-maquina2.cronometro {
-  color: #ffffff;
-  background-color: #222;
+/* Cinta: SOLO color base. Las rayas van en ::after para evitar bugs de background animado */
+.card.transporte .cinta{
+  position:absolute; inset:0;
+  background-color:#0a2f49;   /* se sobrescribe por estado */
+}
+
+/* Rayas animadas en una capa aparte, súper contrastadas */
+.card.transporte .cinta::after{
+  content:"";
+  position:absolute; inset:0;
+  background:
+    repeating-linear-gradient(
+      135deg,
+      rgba(255,255,255,.32) 0 12px,
+      rgba(255,255,255,.10) 12px 24px
+    );
+  background-size: 24px 24px;   /* período = 24px (loop perfecto) */
+  background-position: 0 0;
+  will-change: background-position, filter;
+  pointer-events:none;
+}
+
+/* --- Estados (color base + animación) --- */
+.card.transporte .trayecto.verde .cinta{
+  background-color: var(--verde);
+}
+.card.transporte .trayecto.verde .cinta::after{
+  animation: conveyor 0.75s linear infinite;
+}
+
+.card.transporte .trayecto.amarillo .cinta{
+  background-color: var(--amarillo);
+}
+.card.transporte .trayecto.amarillo .cinta::after{
+  /* pulso visible, sin desplazamiento de la cinta */
+  animation: pulso 1.2s ease-in-out infinite;
+}
+
+.card.transporte .trayecto.rojo .cinta{
+  background-color: var(--rojo);
+}
+.card.transporte .trayecto.rojo .cinta::after{
+  animation: none;   /* parado */
+}
+
+/* --- Animaciones --- */
+@keyframes conveyor{
+  from { background-position:   0 0; }
+  to   { background-position: 24px 0; }  /* desplaza EXACTO 1 período */
+}
+
+@keyframes pulso{
+  0%,100%{ filter:brightness(1) }
+  50%    { filter:brightness(.65) }
+}
+
+/* Accesibilidad: reduce motion */
+@media (prefers-reduced-motion: reduce){
+  .card.transporte .cinta::after{ animation: none !important; }
+}
+
+
+/* ===== Mensaje + Cronómetro ===== */
+.msg, .cron{
+  margin-top:10px;
+  font-size:.92rem;
+  color:#ffffff;
+}
+.cron{
+  background:#222;
+  border:1px solid #444;
+  border-radius:8px;
+  padding:6px 8px;
+  display:inline-block;
+}
+
+/* ===== Botones ===== */
+.botones{ margin-top:10px; }
+.botones button{
+  margin:4px;
+  padding:10px 12px;
+  border:none;
+  border-radius:8px;
+  cursor:pointer;
+  font-weight:700;
+  color:#fff;
+}
+button.verde-btn{ background:#31a335 }
+button.amarillo-btn{ background:var(--amarillo); color:#111; }
+button.rojo-btn{ background:#F44336 }
+.botones button:disabled{
+  opacity:.55; cursor:not-allowed; filter:grayscale(.15);
+}
+
+/* ===== Pequeñas mejoras responsivas ===== */
+@media (max-width:420px){
+  .card{ padding:12px }
+  .card.maquina .estado{ width:78px; height:78px; border-width:5px }
+}
+
+/* Centrado vertical del contenido en tarjetas de TRANSPORTE */
+.card.transporte{
+  display: grid;
+  grid-template-rows: auto 1fr auto auto; /* 1: título | 2: contenido | 3: botones | 4: msg/cron */
+  row-gap: 10px;
+  min-height: 240px; /* ajustá a gusto: 220–260px */
+}
+
+/* La cinta (trayecto) queda en la fila de contenido y centrada */
+.card.transporte .trayecto{
+  grid-row: 2;
+  width: 85%;           /* opcional: que no toque bordes */
+  margin: 0 auto;       /* centra horizontal */
+}
+
+/* Botones y mensajes centrados */
+.card.transporte .botones,
+.card.transporte .msg,
+.card.transporte .cron{
+  justify-self: center;
+}
+
+/* Un poco de aire arriba y abajo para que no quede “pegado” */
+.card.transporte .botones{ margin-top: 4px; }
+.card.transporte .msg,
+.card.transporte .cron{ margin-top: 6px; }
+
+/* En pantallas chicas, un poco más compacto */
+@media (max-width: 420px){
+  .card.transporte{ min-height: 220px; }
+  .card.transporte .trayecto{ width: 90%; }
+}
+
+/* Ocultar con clase utilitaria */
+.botones .oculto{ display:none !important; }
+
+
+
+/* Pequeño toque: en transporte, que la cinta mantenga el foco visual */
+.card.transporte.compact .trayecto{ margin-top: 6px; margin-bottom: 6px; }
+
+/* ===== Centrados y transición según estado de controles ===== */
+
+/* MÁQUINAS: usamos grid para centrar el círculo en compacto y subirlo cuando aparecen botones */
+.card.maquina{
+  display: grid;
+  grid-template-rows: auto 1fr auto auto; /* 1: título | 2: indicador | 3: botones | 4: msg/cron */
+  row-gap: 10px;
+  min-height: 240px; /* ajustá a gusto */
+}
+.card.maquina .estado{
+  grid-row: 2;
+  justify-self: center;
+  align-self: center;
+  transition: transform .22s ease, margin .22s ease;
+}
+/* Cuando mostramos controles, subimos un poco el indicador para dejar aire a los botones */
+.card.maquina.compact.show-controls .estado{
+  align-self: start;
+  margin-top: 6px;
+}
+
+/* TRANSPORTES: ya tenés grid; aseguramos centrado del track y desplazamiento suave */
+.card.transporte{
+  display: grid;
+  grid-template-rows: auto 1fr auto auto; /* 1: título | 2: trayecto | 3: botones | 4: msg/cron */
+  row-gap: 10px;
+  min-height: 240px;
+}
+.card.transporte .trayecto{
+  grid-row: 2;
+  width: 85%;
+  margin: 0 auto;
+  align-self: center;
+  transition: transform .22s ease, margin .22s ease;
+}
+/* Al mostrar controles, el track sube un poco para hacer espacio a los botones */
+.card.transporte.compact.show-controls .trayecto{
+  align-self: start;
+  margin-top: 6px;
+}
+
+/* Responsive finos */
+@media (max-width: 420px){
+  .card.maquina, .card.transporte{ min-height: 220px; }
+  .card.transporte .trayecto{ width: 90%; }
+}
+
+/* ===== Aparición suave de controles en modo compacto (VERDE) ===== */
+/* Estado oculto (mantiene el layout sin saltos) */
+.card.compact .botones,
+.card.compact .msg,
+.card.compact .cron{
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(6px);
+  overflow: clip;              /* oculta contenido sin forzar reflow */
+  pointer-events: none;        /* no clickeables mientras están ocultos */
+  transition:
+    max-height .45s cubic-bezier(.22,.61,.36,1),
+    opacity    .28s ease,
+    transform  .28s ease;
+}
+
+/* Mostrar (PC: hover) */
+.card.compact:hover .botones,
+.card.compact:hover .msg,
+.card.compact:hover .cron{
+  max-height: 200px;           /* suficiente para botones + msg/cron */
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+/* Mostrar (móvil/teclado): cuando el JS agrega .show-controls */
+.card.compact.show-controls .botones,
+.card.compact.show-controls .msg,
+.card.compact.show-controls .cron{
+  max-height: 200px;
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.card.compact .botones,
+.card.compact .msg,
+.card.compact .cron{ transition-delay: 0s, .05s, .05s; }     /* max-height sin delay; opacidad/translate con 50ms */
+
+/* ===== Aparición suave de controles en modo compacto (VERDE) ===== */
+/* Estado oculto (sin saltos de layout) */
+.card.compact .botones,
+.card.compact .msg,
+.card.compact .cron{
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(6px);
+  overflow: clip;
+  pointer-events: none;
+  visibility: hidden; /* evita foco/tab mientras está oculto */
+  transition:
+    max-height .60s cubic-bezier(.22,.61,.36,1),
+    opacity    .35s ease,
+    transform  .35s ease,
+    visibility 0s linear .35s; /* se hace visible cuando terminó el fade */
+}
+
+/* Mostrar (PC: hover) */
+.card.compact:hover .botones,
+.card.compact:hover .msg,
+.card.compact:hover .cron,
+.card.compact.show-controls .botones,
+.card.compact.show-controls .msg,
+.card.compact.show-controls .cron{
+  max-height: 220px;          /* suficiente para botones + msg/cron */
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+  visibility: visible;
+  transition:
+    max-height .60s cubic-bezier(.22,.61,.36,1),
+    opacity    .35s ease,
+    transform  .35s ease,
+    visibility 0s;            /* visible inmediatamente al mostrar */
+}
+
+/* Botones primero abren el espacio y luego aparecen: pequeño delay opcional */
+.card.compact .botones,
+.card.compact .msg,
+.card.compact .cron{
+  transition-delay: 0s, .05s, .05s, .35s; /* max-height sin delay; fade/slide con 50ms */
+}
+.card.compact:hover .botones,
+.card.compact:hover .msg,
+.card.compact:hover .cron,
+.card.compact.show-controls .botones,
+.card.compact.show-controls .msg,
+.card.compact.show-controls .cron{
+  transition-delay: 0s, 0s, 0s, 0s;
+}
+
+/* Ocultar completamente mensaje/cronómetro cuando están vacíos (evita el "punto negro") */
+.msg:empty,
+.cron:empty{
+  max-height: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  display: block; /* mantené block para que las transiciones de los hermanos no salten */
+}
+
+/* ===== Modo resumen móvil (sin scroll inicial) ===== */
+@media (max-width: 600px){
+  body.mobile-summary .panel { padding-top: 0; }
+
+  /* Ocultar la grilla cuando estamos en resumen móvil */
+  body.mobile-summary #grid-linea{ display:none; }
+
+  /* Contenedor del resumen */
+  #summary-mobile{
+    display: none; /* por defecto oculto en desktop o cuando no aplica */
+  }
+  body.mobile-summary #summary-mobile{
+    display: grid;
+    place-items: center;
+    min-height: calc(100dvh - 56px); /* casi pantalla entera menos header */
+    padding: 16px;
+  }
+
+  .summary-card{
+    background: var(--card-transp);
+    border: 1px solid var(--borde-transp);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 16px;
+    width: min(540px, 92vw);
+    color: #fff;
+    text-align: center;
+  }
+  .summary-title{
+    font-size: 18px; font-weight: 800; margin: 0 0 10px;
+  }
+  .summary-kpis{
+    display: grid; grid-template-columns: repeat(3,1fr); gap: 10px;
+    margin: 10px 0 6px;
+  }
+  .kpi{
+    border-radius: 12px; padding: 10px 8px;
+    background: #0a2f49; border:1px solid #0d4066;
+  }
+  .kpi .n{ font-size: 20px; font-weight: 800; line-height: 1; }
+  .kpi.ok   .n{ color: var(--verde); }
+  .kpi.warn .n{ color: #805d00; }  /* contraste sobre la tarjeta */
+  .kpi.bad  .n{ color: #ff6b6b; }
+
+  .summary-list{
+    display:flex; flex-wrap:wrap; gap:6px; justify-content:center;
+    margin-top: 6px;
+  }
+  .chip{
+    font-size: 12px; padding:6px 10px; border-radius:999px;
+    border:1px solid #334155; background:#1f2937; color:#e2e8f0;
+  }
+  .chip.warn{ border-color:#a16207; background:#3b2d04; color:#ffd166; }
+  .chip.bad { border-color:#7f1d1d; background:#3a0d0d; color:#fecaca; }
+
+  .summary-footer{
+    margin-top: 10px; font-size: 12px; color: #cbd5e1;
+  }
 }

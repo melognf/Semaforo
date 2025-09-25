@@ -4,48 +4,29 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Panel de Control - Línea de Producción</title>
+
+  <!-- Gate simple por sesión (igual que tu base) -->
   <script>
-if (!sessionStorage.getItem('gate_ok_v1')) {
-  var v = (prompt('Ingrese la contraseña:') || '').trim().toLowerCase();
-  if (v === 'chespirito') {
-    sessionStorage.setItem('gate_ok_v1','1'); // válido hasta cerrar la pestaña
-  } else {
-    document.write('<h2 style="text-align:center;color:red">Acceso denegado</h2><p style="text-align:center"><button onclick="location.reload()">Reintentar</button></p>');
-    throw 0; // corta la carga del resto
+  if (!sessionStorage.getItem('gate_ok_v1')) {
+    var v = (prompt('Ingrese la contraseña:') || '').trim().toLowerCase();
+    if (v === 'chespirito') {
+      sessionStorage.setItem('gate_ok_v1','1');
+    } else {
+      document.write('<h2 style="text-align:center;color:red">Acceso denegado</h2><p style="text-align:center"><button onclick="location.reload()">Reintentar</button></p>');
+      throw 0;
+    }
   }
-}
-</script>
+  </script>
 
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <header>
-    <h1>Estado de Máquinas - Línea de Producción</h1>
+    <h1>Estado de Máquinas y Transportes</h1>
   </header>
-  <main class="panel">
-    <div class="maquina" id="maquina1">
-      <h2>Máquina 1</h2>
-      <div class="estado verde"></div>
-      <div class="botones">
-        <button class="verde-btn" onclick="cambiarEstado('maquina1', 'verde')">OK</button>
-        <button class="amarillo-btn" onclick="cambiarEstado('maquina1', 'amarillo')">Advertencia</button>
-        <button class="rojo-btn" onclick="cambiarEstado('maquina1', 'rojo')">Fallo</button>
-      </div>
-      <div class="mensaje" id="mensaje-maquina1"></div>
-      <div class="cronometro" id="cronometro-maquina1"></div>
-    </div>
 
-    <div class="maquina" id="maquina2">
-      <h2>Máquina 2</h2>
-      <div class="estado verde"></div>
-      <div class="botones">
-        <button class="verde-btn" onclick="cambiarEstado('maquina2', 'verde')">OK</button>
-        <button class="amarillo-btn" onclick="cambiarEstado('maquina2', 'amarillo')">Advertencia</button>
-        <button class="rojo-btn" onclick="cambiarEstado('maquina2', 'rojo')">Fallo</button>
-      </div>
-      <div class="mensaje" id="mensaje-maquina2"></div>
-      <div class="cronometro" id="cronometro-maquina2"></div>
-    </div>
+  <main class="panel">
+    <div id="grid-linea" class="grid"></div>
   </main>
 
   <script type="module" src="script.js"></script>
