@@ -132,7 +132,7 @@ function mostrarEstado(id, color, texto = '', timestamp = ''){
       const elapsed = Math.floor((Date.now() - inicioMs) / 1000);
       const hh = String(Math.floor(elapsed/3600)).padStart(2,'0');
       const mm = String(Math.floor((elapsed%3600)/60)).padStart(2,'0');
-      const ss = String(elapsed%60).padStart(2,'0');
+      const ss = String(elapsed%60).toString().padStart(2,'0');
       if (cron) cron.textContent = `⏱ Tiempo detenido: ${hh}:${mm}:${ss}`;
     }, 1000);
   }
@@ -283,6 +283,7 @@ attachRevealHandlers();
    ===== Resumen móvil (NEW) =====
    - Sin scroll si todo está en verde (≤600px)
    - Si hay incidencias, mostramos tarjetas y hacemos scroll
+   - >>> intervención desde resumen (botón y chips clickeables)
 ==================================*/
 const isSmallScreen = window.matchMedia('(max-width: 600px)');
 
@@ -299,10 +300,31 @@ function ensureSummaryShell(){
         <div class="kpi bad"><div class="n" id="kpi-bad">0</div><div>Fallas</div></div>
       </div>
       <div class="summary-list" id="summary-chips"></div>
-      <div class="summary-footer" id="summary-footer"></div>
+      <div class="summary-actions" style="margin-top:10px;">
+        <button id="btn-intervenir" class="btn-intervenir" style="
+          padding:10px 14px;border:none;border-radius:10px;
+          background:#31a335;color:#fff;font-weight:800;">
+          Reportar fallo / advertencia
+        </button>
+      </div>
+      <div class="summary-footer" id="summary-footer" style="margin-top:8px;font-size:12px;color:#cbd5e1;"></div>
     </div>
   `;
   document.querySelector('.panel')?.insertBefore(wrap, document.getElementById('grid-linea'));
+
+  // >>> listeners del resumen (una sola vez)
+  wrap.addEventListener('click', (e) => {
+    // Chips clickeables (cuando haya incidencias)
+    const chip = e.target.closest('.chip[data-id]');
+    if (chip) {
+      enterInterventionMode(chip.dataset.id);
+      return;
+    }
+    // Botón intervenir (cuando todo está en verde)
+    if (e.target.id === 'btn-intervenir') {
+      enterInterventionMode(firstIssueId() || ORDEN[0].id);
+    }
+  });
 }
 
 function firstIssueId(){
@@ -313,15 +335,24 @@ function firstIssueId(){
   return null;
 }
 
+function enterInterventionMode(targetId){
+  // Salir del resumen, mostrar grilla
+  document.body.classList.remove('mobile-summary');
+  // Abrir controles y scroll a la tarjeta objetivo
+  const id = targetId || ORDEN[0].id;
+  const el = document.getElementById(`card-${id}`);
+  if (!el) return;
+  // Mostramos controles aunque esté en verde (compacto)
+  el.classList.add('show-controls');
+  setTimeout(() => {
+    el.scrollIntoView({ behavior:'smooth', block:'start' });
+  }, 0);
+}
+
 function scrollToIssue(){
   const id = firstIssueId();
   if (!id) return;
-  const el = document.getElementById(`card-${id}`);
-  if (!el) return;
-  setTimeout(() => {
-    el.scrollIntoView({ behavior:'smooth', block:'start' });
-    el.classList.add('show-controls');
-  }, 50);
+  enterInterventionMode(id);
 }
 
 function updateMobileSummary(){
@@ -337,8 +368,8 @@ function updateMobileSummary(){
   for (const n of ORDEN){
     const st = estadosActuales[n.id] || 'verde';
     if (st === 'verde') ok++;
-    if (st === 'amarillo') { warn++; chips.push({t:n.label,c:'warn'}); }
-    if (st === 'rojo')     { bad++;  chips.push({t:n.label,c:'bad'});  }
+    if (st === 'amarillo') { warn++; chips.push({t:n.label,c:'warn',id:n.id}); }
+    if (st === 'rojo')     { bad++;  chips.push({t:n.label,c:'bad', id:n.id}); }
   }
 
   // KPIs
@@ -349,16 +380,18 @@ function updateMobileSummary(){
   if ($warn) $warn.textContent = warn;
   if ($bad)  $bad.textContent = bad;
 
-  // Chips
+  // Chips (clickeables a tarjeta)
   const list = document.getElementById('summary-chips');
   if (list){
-    list.innerHTML = chips.map(ch => `<span class="chip ${ch.c}">${ch.t}</span>`).join('');
+    list.innerHTML = chips
+      .map(ch => `<span class="chip ${ch.c}" data-id="${ch.id}">${ch.t}</span>`)
+      .join('');
   }
 
   const footer = document.getElementById('summary-footer');
   if (footer){
     footer.textContent = (warn===0 && bad===0)
-      ? 'Todo en verde. No es necesario revisar.'
+      ? 'Todo en verde. Podés intervenir si necesitás reportar algo.'
       : 'Se detectaron incidencias. Mostrando tarjetas…';
   }
 
