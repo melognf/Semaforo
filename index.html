@@ -4,32 +4,30 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Panel de Control - Línea de Producción</title>
-<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
-<link rel="preconnect" href="https://firestore.googleapis.com">
-<link rel="dns-prefetch" href="https://www.gstatic.com">
-<link rel="dns-prefetch" href="https://firestore.googleapis.com">
-<link rel="manifest" href="/manifest.webmanifest">
-<meta name="theme-color" content="#0b3a5c">
-<link rel="icon" type="image/png" sizes="192x192" href="/icons/l1-192.png">
-<link rel="icon" type="image/png" sizes="512x512" href="/icons/l1-512.png">
-<link rel="apple-touch-icon" href="/icons/l1-192.png">
 
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://firestore.googleapis.com">
+  <link rel="dns-prefetch" href="https://www.gstatic.com">
+  <link rel="dns-prefetch" href="https://firestore.googleapis.com">
 
-  <!-- Gate simple por sesión (igual que tu base) -->
+  <!-- 👇 sin “/” adelante -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#0b3a5c">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/l1-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="icons/l1-512.png">
+  <link rel="apple-touch-icon" href="icons/l1-192.png">
+
   <script>
-  if (!sessionStorage.getItem('gate_ok_v1')) {
-    var v = (prompt('Ingrese la contraseña:') || '').trim().toLowerCase();
-    if (v === 'chespirito') {
-      sessionStorage.setItem('gate_ok_v1','1');
-    } else {
-      document.write('<h2 style="text-align:center;color:red">Acceso denegado</h2><p style="text-align:center"><button onclick="location.reload()">Reintentar</button></p>');
-      throw 0;
+    if (!sessionStorage.getItem('gate_ok_v1')) {
+      var v = (prompt('Ingrese la contraseña:') || '').trim().toLowerCase();
+      if (v === 'chespirito') { sessionStorage.setItem('gate_ok_v1','1'); }
+      else { document.write('<h2 style="text-align:center;color:red">Acceso denegado</h2><p style="text-align:center"><button onclick="location.reload()">Reintentar</button></p>'); throw 0; }
     }
-  }
   </script>
 
   <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
   <header>
     <h1>Estado de Máquinas y Transportes</h1>
