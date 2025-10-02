@@ -43,8 +43,8 @@ const grid = $('#grid-linea');
    - WA_NUMBER: si querés forzar un destino (con código país, sin "+")
    - WA_PREFIX: texto opcional que se antepone a lo que escribís
 ======================================================== */
-const WA_NUMBER = "";   // ej: "54911xxxxxxxx"  (vacío => selector de contacto)
-const WA_PREFIX = "[L2] "; // si querés prefijo en el mensaje final
+const WA_NUMBER = "";      // ej: "54911XXXXXXXX"  (vacío => selector de contacto)
+const WA_PREFIX = "[L2] "; // prefijo opcional en el mensaje final
 
 const isMobileUA = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
@@ -78,19 +78,22 @@ function formatLocal(tsISO){
   }catch{ return tsISO || ''; }
 }
 
+/* ✅ FALTABA: obtener label a partir del id (evita ReferenceError) */
+function labelDe(id){
+  const n = ORDEN.find(x => x.id === id);
+  return n ? n.label : id;
+}
+
 /* Arma el mensaje final para WA */
 function buildIncidentMessage(id, color, texto, tsISO){
   const titulo = estadoTitulo(color);
   const equipo = labelDe(id);
   const hora   = formatLocal(tsISO);
   const detalle = (texto || '').trim();
-
-  // Ajustá el formato a gusto
   return `${WA_PREFIX}${titulo} — ${equipo}
 Hora: ${hora}
 Detalle: ${detalle}`;
 }
-
 
 /* Muestra un banner en la tarjeta con botón “Enviar por WhatsApp” (no lo bloquea el navegador) */
 function showWhatsAppBanner(id, texto){
@@ -289,13 +292,11 @@ async function cambiarEstado(id, color){
   // Guardar primero (fiabilidad)
   await guardarEnFirestore(id, color, texto, ts);
 
-  // Luego mostrar botón de WhatsApp (click del usuario => no lo bloquean)
-  // Luego mostrar botón de WhatsApp (click del usuario => no lo bloquean)
-if (color === 'amarillo' || color === 'rojo') {
-  const mensajeWA = buildIncidentMessage(id, color, texto, ts);
-  showWhatsAppBanner(id, mensajeWA);
-}
-
+  // ✅ Botón de WhatsApp (no bloquea, el usuario hace click)
+  if (color === 'amarillo' || color === 'rojo') {
+    const mensajeWA = buildIncidentMessage(id, color, texto, ts);
+    showWhatsAppBanner(id, mensajeWA);
+  }
 }
 
 function actualizarBotones(id, estado){
@@ -328,7 +329,7 @@ function suscribir(id){
     if (recibido > visto) {
       timestampsVistos[id] = data.timestamp;
       origenes[id] = data.origen || null;
-      // Los demás clientes solo actualizan UI (no abren WhatsApp)
+      // Otros clientes solo actualizan UI (sin banner WA)
       mostrarEstado(id, data.estado, data.texto, data.timestamp);
     }
   });
