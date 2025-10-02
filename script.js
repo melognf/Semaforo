@@ -13,10 +13,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db  = getFirestore(app);
 
-/* ========= Orden intercalado EXACTO =========
-   - type: 'maquina' | 'transporte'
-   - id: usado como docId en 'equipos'
-============================================= */
+/* ========= Orden intercalado EXACTO ========= */
 const ORDEN = [
   { id:'depaletizadora',                label:'DEPALETIZADORA',                    type:'maquina'     },
   { id:'transporte_aereo',              label:'TRANSPORTE AÉREO',                  type:'transporte'  },
@@ -38,6 +35,55 @@ const cronos = {};
 const estadosActuales = {};
 const timestampsVistos = {};
 const origenes = {};
+const lastNotificadoTs = {};   // anti-duplicado local por equipo
+
+/* ========= WebSocket (WSS) ========= */
+/* Cambiá WS_URL por tu endpoint (debe ser wss:// si servís por https) */
+const WS_URL   = "wss://TU-SERVIDOR/tu-endpoint";
+const WS_TOKEN = ""; // opcional
+let ws = null;
+let wsReady = false;
+const wsQueue = [];
+
+function wsOpen(){
+  try { ws = new WebSocket(WS_URL); }
+  catch(e){ console.error("[WS] open error:", e); setTimeout(wsOpen, 3000); return; }
+
+  ws.onopen = () => {
+    wsReady = true;
+    if (WS_TOKEN) ws.send(JSON.stringify({ type:"auth", token:WS_TOKEN }));
+    while (wsQueue.length) ws.send(wsQueue.shift());
+  };
+  ws.onclose  = () => { wsReady = false; setTimeout(wsOpen, 3000); };
+  ws.onerror  = () => { try{ ws.close(); }catch{} };
+  ws.onmessage = () => {};
+}
+function wsSend(obj){
+  const s = JSON.stringify(obj);
+  if (wsReady && ws?.readyState === WebSocket.OPEN) ws.send(s);
+  else wsQueue.push(s);
+}
+wsOpen();
+
+function labelDe(id){
+  const n = ORDEN.find(x => x.id === id);
+  return n ? n.label : id;
+}
+function enviarNotiWS({ id, color, texto, timestamp }){
+  if (color !== 'amarillo' && color !== 'rojo') return;
+  if (lastNotificadoTs[id] === timestamp) return;   // evita doble envío local
+  lastNotificadoTs[id] = timestamp;
+
+  wsSend({
+    type: "evento_linea",
+    nivel: color,                 // 'amarillo' | 'rojo'
+    equipo_id: id,
+    equipo_label: labelDe(id),
+    texto: (texto || '').trim(),
+    timestamp,
+    origen: deviceId              // quien generó
+  });
+}
 
 const $ = (s, ctx=document) => ctx.querySelector(s);
 const grid = $('#grid-linea');
@@ -47,7 +93,6 @@ function crearCard(node){
   if (node.type === 'transporte') return crearCardTransporte(node);
   return crearCardMaquina(node);
 }
-
 function crearCardMaquina({id, label}){
   const card = document.createElement('div');
   card.className = 'card maquina';
@@ -65,7 +110,6 @@ function crearCardMaquina({id, label}){
   `;
   return card;
 }
-
 function crearCardTransporte({id, label}){
   const card = document.createElement('div');
   card.className = 'card transporte';
@@ -85,12 +129,9 @@ function crearCardTransporte({id, label}){
   `;
   return card;
 }
-
 function montarUI(){
   ORDEN.forEach(n => grid.appendChild(crearCard(n)));
-
-  // Delegación de eventos para todos los botones
-  document.body.addEventListener('click', async (e) => {
+  document.body.addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-id][data-color]');
     if (!btn) return;
     const id = btn.dataset.id;
@@ -107,11 +148,9 @@ function mostrarEstado(id, color, texto = '', timestamp = ''){
   const msg  = document.querySelector(`#msg-${id}`);
   const cron = document.querySelector(`#cron-${id}`);
 
-  // limpiar textos
   if (msg)  msg.textContent = '';
   if (cron) cron.textContent = '';
 
-  // Pintado visual (máquina vs transporte)
   const esTransporte = !!document.querySelector(`#trayecto-${id}`);
   if (esTransporte) {
     const track = document.querySelector(`#trayecto-${id}`);
@@ -122,7 +161,6 @@ function mostrarEstado(id, color, texto = '', timestamp = ''){
     if (luz) luz.className = 'estado ' + color;
   }
 
-  // Mensajes y cronómetro para estados no verdes
   if (color === 'amarillo' && texto) {
     if (msg) msg.textContent = `⚠️ ${texto}`;
   } else if (color === 'rojo' && texto) {
@@ -132,34 +170,28 @@ function mostrarEstado(id, color, texto = '', timestamp = ''){
       const elapsed = Math.floor((Date.now() - inicioMs) / 1000);
       const hh = String(Math.floor(elapsed/3600)).padStart(2,'0');
       const mm = String(Math.floor((elapsed%3600)/60)).padStart(2,'0');
-      const ss = String(elapsed%60).toString().padStart(2,'0');
+      const ss = String(elapsed%60).padStart(2,'0');
       if (cron) cron.textContent = `⏱ Tiempo detenido: ${hh}:${mm}:${ss}`;
     }, 1000);
   }
 
-  // Modo compacto cuando está en VERDE
   if (card){
-    if (color === 'verde') {
-      card.classList.add('compact');
-    } else {
-      card.classList.remove('compact', 'show-controls'); // en amarillo/rojo siempre visible
-    }
+    if (color === 'verde') card.classList.add('compact');
+    else card.classList.remove('compact', 'show-controls');
   }
 
   estadosActuales[id] = color;
   actualizarBotones(id, color);
 
-  // ===== Resumen móvil: actualizar vista cada vez que cambia un estado =====
   updateMobileSummary();
 }
 
 /* ========= Firestore ========= */
-async function guardarEnFirestore(id, estado, texto){
-  const now = new Date().toISOString();
+async function guardarEnFirestore(id, estado, texto, timestamp){
   await setDoc(doc(db, 'equipos', id), {
     estado,
     texto,
-    timestamp: now,
+    timestamp,     // usamos el mismo ts que enviamos por WS y que vemos en UI
     origen: deviceId
   }, { merge: true });
 }
@@ -184,11 +216,18 @@ async function cambiarEstado(id, color){
     if (!texto.trim()) return;
   }
 
-  // feedback inmediato y bloqueo local
-  mostrarEstado(id, color, texto, new Date().toISOString());
+  // timestamp único para este evento (UI, Firestore y WS)
+  const ts = new Date().toISOString();
+
+  // feedback inmediato en UI
+  mostrarEstado(id, color, texto, ts);
   origenes[id] = deviceId;
 
-  await guardarEnFirestore(id, color, texto);
+  // guardamos en Firestore
+  await guardarEnFirestore(id, color, texto, ts);
+
+  // 🔔 envia WS SOLO el generador (este cliente)
+  enviarNotiWS({ id, color, texto, timestamp: ts });
 }
 
 function actualizarBotones(id, estado){
@@ -199,14 +238,9 @@ function actualizarBotones(id, estado){
   const btnWarn  = cont.querySelector('.amarillo-btn');
   const btnFail  = cont.querySelector('.rojo-btn');
 
-  // Visibilidad del botón Amarillo en ROJO
-  if (estado === 'rojo') {
-    btnWarn?.classList.add('oculto');
-  } else {
-    btnWarn?.classList.remove('oculto');
-  }
+  if (estado === 'rojo') btnWarn?.classList.add('oculto');
+  else btnWarn?.classList.remove('oculto');
 
-  // Regla de bloqueo del OK
   const esRojoOAmarillo = (estado === 'rojo' || estado === 'amarillo');
   const esMiFallo = origenes[id] === deviceId;
 
@@ -222,9 +256,12 @@ function suscribir(id){
     const data = snap.data();
     const recibido = new Date(data.timestamp || 0).getTime();
     const visto = new Date(timestampsVistos[id] || 0).getTime();
+
     if (recibido > visto) {
       timestampsVistos[id] = data.timestamp;
       origenes[id] = data.origen || null;
+
+      // Actualizamos UI (NO enviamos WS aquí para que sólo lo haga el generador)
       mostrarEstado(id, data.estado, data.texto, data.timestamp);
     }
   });
@@ -234,66 +271,43 @@ function suscribir(id){
 }
 
 /* ========= Bootstrap ========= */
-montarUI();
-
-// marca de tipo (opcional, para auditoría/compatibilidad futura)
-ORDEN.forEach(async n => {
-  await setDoc(doc(db,'equipos', n.id), { tipo: n.type }, { merge: true });
-  suscribir(n.id);
-});
-
-// ===== Mostrar controles con interacción y ocultar automáticamente =====
-// ===== Mostrar controles con interacción y ocultar automáticamente =====
-// const SHOW_MS = 4000;   // <-- QUITALA
-const BASE_SHOW_MS   = 4000;   // PC / no táctil
-const MOBILE_SHOW_MS = 10000;  // móvil (10 s)
-const hideTimers = {};
-
-const isMobile = () => window.matchMedia('(pointer: coarse)').matches;
-const getShowMs = () => (isMobile() ? MOBILE_SHOW_MS : BASE_SHOW_MS);
-                    // timers por tarjeta
-
-function forceShowControls(card){
-  if (!card.classList.contains('compact')) return; // solo aplica en verde
-  card.classList.add('show-controls');
-  clearTimeout(hideTimers[card.id]);
-  hideTimers[card.id] = setTimeout(() => {
-    card.classList.remove('show-controls');
-  }, getShowMs()); // <-- ahora depende del dispositivo
-}
-
-
 function attachRevealHandlers(){
+  const SHOW_MS = 4000;
+  const hideTimers = {};
   document.querySelectorAll('.card').forEach(card => {
-    // Desktop: entrar/salir con mouse
-    card.addEventListener('pointerenter', () => forceShowControls(card));
+    card.addEventListener('pointerenter', () => {
+      if (!card.classList.contains('compact')) return;
+      card.classList.add('show-controls');
+      clearTimeout(hideTimers[card.id]);
+      hideTimers[card.id] = setTimeout(()=>card.classList.remove('show-controls'), SHOW_MS);
+    });
     card.addEventListener('pointerleave', () => {
       clearTimeout(hideTimers[card.id]);
       card.classList.remove('show-controls');
     });
-
-    // Touch / click: un toque muestra/renueva el timer.
-    // Si se toca un botón, no togglear la tarjeta.
-    // card.addEventListener('click', (e) => {
-card.addEventListener('pointerdown', (e) => {
-  if (e.target.closest('.botones')) return;
-  forceShowControls(card);
-});
-
-
-    // Accesibilidad: al enfocar con teclado también mostrar
-    card.addEventListener('focusin', () => forceShowControls(card));
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('.botones')) return;
+      if (!card.classList.contains('compact')) return;
+      card.classList.add('show-controls');
+      clearTimeout(hideTimers[card.id]);
+      hideTimers[card.id] = setTimeout(()=>card.classList.remove('show-controls'), SHOW_MS);
+    });
+    card.addEventListener('focusin', () => {
+      if (!card.classList.contains('compact')) return;
+      card.classList.add('show-controls');
+    });
   });
 }
 
-// Llamalo una vez al armar la UI
+montarUI();
+ORDEN.forEach(async n => {
+  await setDoc(doc(db,'equipos', n.id), { tipo: n.type }, { merge: true });
+  suscribir(n.id);
+});
 attachRevealHandlers();
 
 /* ================================
    ===== Resumen móvil (NEW) =====
-   - Sin scroll si todo está en verde (≤600px)
-   - Si hay incidencias, mostramos tarjetas y hacemos scroll
-   - >>> intervención desde resumen (botón y chips clickeables)
 ==================================*/
 const isSmallScreen = window.matchMedia('(max-width: 600px)');
 
@@ -310,31 +324,10 @@ function ensureSummaryShell(){
         <div class="kpi bad"><div class="n" id="kpi-bad">0</div><div>Fallas</div></div>
       </div>
       <div class="summary-list" id="summary-chips"></div>
-      <div class="summary-actions" style="margin-top:10px;">
-        <button id="btn-intervenir" class="btn-intervenir" style="
-          padding:10px 14px;border:none;border-radius:10px;
-          background:#31a335;color:#fff;font-weight:800;">
-          Reportar fallo / advertencia
-        </button>
-      </div>
-      <div class="summary-footer" id="summary-footer" style="margin-top:8px;font-size:12px;color:#cbd5e1;"></div>
+      <div class="summary-footer" id="summary-footer"></div>
     </div>
   `;
   document.querySelector('.panel')?.insertBefore(wrap, document.getElementById('grid-linea'));
-
-  // >>> listeners del resumen (una sola vez)
-  wrap.addEventListener('click', (e) => {
-    // Chips clickeables (cuando haya incidencias)
-    const chip = e.target.closest('.chip[data-id]');
-    if (chip) {
-      enterInterventionMode(chip.dataset.id);
-      return;
-    }
-    // Botón intervenir (cuando todo está en verde)
-    if (e.target.id === 'btn-intervenir') {
-      enterInterventionMode(firstIssueId() || ORDEN[0].id);
-    }
-  });
 }
 
 function firstIssueId(){
@@ -345,24 +338,15 @@ function firstIssueId(){
   return null;
 }
 
-function enterInterventionMode(targetId){
-  // Salir del resumen, mostrar grilla
-  document.body.classList.remove('mobile-summary');
-  // Abrir controles y scroll a la tarjeta objetivo
-  const id = targetId || ORDEN[0].id;
-  const el = document.getElementById(`card-${id}`);
-  if (!el) return;
-  // Mostramos controles aunque esté en verde (compacto)
-  el.classList.add('show-controls');
-  setTimeout(() => {
-    el.scrollIntoView({ behavior:'smooth', block:'start' });
-  }, 0);
-}
-
 function scrollToIssue(){
   const id = firstIssueId();
   if (!id) return;
-  enterInterventionMode(id);
+  const el = document.getElementById(`card-${id}`);
+  if (!el) return;
+  setTimeout(() => {
+    el.scrollIntoView({ behavior:'smooth', block:'start' });
+    el.classList.add('show-controls');
+  }, 50);
 }
 
 function updateMobileSummary(){
@@ -372,17 +356,15 @@ function updateMobileSummary(){
   }
   ensureSummaryShell();
 
-  // Contar estados
   let ok=0, warn=0, bad=0;
   const chips = [];
   for (const n of ORDEN){
     const st = estadosActuales[n.id] || 'verde';
     if (st === 'verde') ok++;
-    if (st === 'amarillo') { warn++; chips.push({t:n.label,c:'warn',id:n.id}); }
-    if (st === 'rojo')     { bad++;  chips.push({t:n.label,c:'bad', id:n.id}); }
+    if (st === 'amarillo') { warn++; chips.push({t:n.label,c:'warn'}); }
+    if (st === 'rojo')     { bad++;  chips.push({t:n.label,c:'bad'});  }
   }
 
-  // KPIs
   const $ok   = document.getElementById('kpi-ok');
   const $warn = document.getElementById('kpi-warn');
   const $bad  = document.getElementById('kpi-bad');
@@ -390,30 +372,25 @@ function updateMobileSummary(){
   if ($warn) $warn.textContent = warn;
   if ($bad)  $bad.textContent = bad;
 
-  // Chips (clickeables a tarjeta)
   const list = document.getElementById('summary-chips');
   if (list){
-    list.innerHTML = chips
-      .map(ch => `<span class="chip ${ch.c}" data-id="${ch.id}">${ch.t}</span>`)
-      .join('');
+    list.innerHTML = chips.map(ch => `<span class="chip ${ch.c}">${ch.t}</span>`).join('');
   }
 
   const footer = document.getElementById('summary-footer');
   if (footer){
     footer.textContent = (warn===0 && bad===0)
-      ? 'Todo en verde. Podés intervenir si necesitás reportar algo.'
+      ? 'Todo en verde. No es necesario revisar.'
       : 'Se detectaron incidencias. Mostrando tarjetas…';
   }
 
-  // Vista
   if (warn===0 && bad===0){
-    document.body.classList.add('mobile-summary');   // muestra el resumen y oculta la grilla
+    document.body.classList.add('mobile-summary');
   } else {
-    document.body.classList.remove('mobile-summary'); // muestra la grilla
-    scrollToIssue();                                  // salta al primer problema
+    document.body.classList.remove('mobile-summary');
+    scrollToIssue();
   }
 }
 
-// Llamadas iniciales y escucha de tamaño
 updateMobileSummary();
 isSmallScreen.addEventListener('change', updateMobileSummary);
