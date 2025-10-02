@@ -35,55 +35,6 @@ const cronos = {};
 const estadosActuales = {};
 const timestampsVistos = {};
 const origenes = {};
-const lastNotificadoTs = {};   // anti-duplicado local por equipo
-
-/* ========= WebSocket (WSS) ========= */
-/* Cambiá WS_URL por tu endpoint (debe ser wss:// si servís por https) */
-const WS_URL   = "wss://TU-SERVIDOR/tu-endpoint";
-const WS_TOKEN = ""; // opcional
-let ws = null;
-let wsReady = false;
-const wsQueue = [];
-
-function wsOpen(){
-  try { ws = new WebSocket(WS_URL); }
-  catch(e){ console.error("[WS] open error:", e); setTimeout(wsOpen, 3000); return; }
-
-  ws.onopen = () => {
-    wsReady = true;
-    if (WS_TOKEN) ws.send(JSON.stringify({ type:"auth", token:WS_TOKEN }));
-    while (wsQueue.length) ws.send(wsQueue.shift());
-  };
-  ws.onclose  = () => { wsReady = false; setTimeout(wsOpen, 3000); };
-  ws.onerror  = () => { try{ ws.close(); }catch{} };
-  ws.onmessage = () => {};
-}
-function wsSend(obj){
-  const s = JSON.stringify(obj);
-  if (wsReady && ws?.readyState === WebSocket.OPEN) ws.send(s);
-  else wsQueue.push(s);
-}
-wsOpen();
-
-function labelDe(id){
-  const n = ORDEN.find(x => x.id === id);
-  return n ? n.label : id;
-}
-function enviarNotiWS({ id, color, texto, timestamp }){
-  if (color !== 'amarillo' && color !== 'rojo') return;
-  if (lastNotificadoTs[id] === timestamp) return;   // evita doble envío local
-  lastNotificadoTs[id] = timestamp;
-
-  wsSend({
-    type: "evento_linea",
-    nivel: color,                 // 'amarillo' | 'rojo'
-    equipo_id: id,
-    equipo_label: labelDe(id),
-    texto: (texto || '').trim(),
-    timestamp,
-    origen: deviceId              // quien generó
-  });
-}
 
 const $ = (s, ctx=document) => ctx.querySelector(s);
 const grid = $('#grid-linea');
@@ -191,7 +142,7 @@ async function guardarEnFirestore(id, estado, texto, timestamp){
   await setDoc(doc(db, 'equipos', id), {
     estado,
     texto,
-    timestamp,     // usamos el mismo ts que enviamos por WS y que vemos en UI
+    timestamp,
     origen: deviceId
   }, { merge: true });
 }
@@ -216,18 +167,12 @@ async function cambiarEstado(id, color){
     if (!texto.trim()) return;
   }
 
-  // timestamp único para este evento (UI, Firestore y WS)
   const ts = new Date().toISOString();
 
-  // feedback inmediato en UI
   mostrarEstado(id, color, texto, ts);
   origenes[id] = deviceId;
 
-  // guardamos en Firestore
   await guardarEnFirestore(id, color, texto, ts);
-
-  // 🔔 envia WS SOLO el generador (este cliente)
-  enviarNotiWS({ id, color, texto, timestamp: ts });
 }
 
 function actualizarBotones(id, estado){
@@ -260,42 +205,41 @@ function suscribir(id){
     if (recibido > visto) {
       timestampsVistos[id] = data.timestamp;
       origenes[id] = data.origen || null;
-
-      // Actualizamos UI (NO enviamos WS aquí para que sólo lo haga el generador)
       mostrarEstado(id, data.estado, data.texto, data.timestamp);
     }
   });
 
-  // Estado inicial (opcional: verde)
   mostrarEstado(id, estadosActuales[id] || 'verde', '', '');
 }
 
-/* ========= Bootstrap ========= */
+/* ========= Bootstrap + UX ========= */
+const BASE_SHOW_MS   = 4000;   // desktop
+const MOBILE_SHOW_MS = 10000;  // móvil
+const isMobile = () => window.matchMedia('(pointer: coarse)').matches;
+const getShowMs = () => (isMobile() ? MOBILE_SHOW_MS : BASE_SHOW_MS);
+
+function forceShowControls(card){
+  if (!card.classList.contains('compact')) return;
+  card.classList.add('show-controls');
+  clearTimeout(card._hideTimer);
+  card._hideTimer = setTimeout(() => {
+    card.classList.remove('show-controls');
+  }, getShowMs());
+}
+
 function attachRevealHandlers(){
-  const SHOW_MS = 4000;
-  const hideTimers = {};
   document.querySelectorAll('.card').forEach(card => {
-    card.addEventListener('pointerenter', () => {
-      if (!card.classList.contains('compact')) return;
-      card.classList.add('show-controls');
-      clearTimeout(hideTimers[card.id]);
-      hideTimers[card.id] = setTimeout(()=>card.classList.remove('show-controls'), SHOW_MS);
-    });
+    card.addEventListener('pointerenter', () => forceShowControls(card));
     card.addEventListener('pointerleave', () => {
-      clearTimeout(hideTimers[card.id]);
+      clearTimeout(card._hideTimer);
       card.classList.remove('show-controls');
     });
-    card.addEventListener('click', (e) => {
+    // En móvil, un toque sobre la tarjeta (pero no sobre los botones) muestra los controles
+    card.addEventListener('pointerdown', (e) => {
       if (e.target.closest('.botones')) return;
-      if (!card.classList.contains('compact')) return;
-      card.classList.add('show-controls');
-      clearTimeout(hideTimers[card.id]);
-      hideTimers[card.id] = setTimeout(()=>card.classList.remove('show-controls'), SHOW_MS);
+      forceShowControls(card);
     });
-    card.addEventListener('focusin', () => {
-      if (!card.classList.contains('compact')) return;
-      card.classList.add('show-controls');
-    });
+    card.addEventListener('focusin', () => forceShowControls(card));
   });
 }
 
@@ -307,7 +251,7 @@ ORDEN.forEach(async n => {
 attachRevealHandlers();
 
 /* ================================
-   ===== Resumen móvil (NEW) =====
+   ===== Resumen móvil (VERDE) ===
 ==================================*/
 const isSmallScreen = window.matchMedia('(max-width: 600px)');
 
@@ -324,10 +268,32 @@ function ensureSummaryShell(){
         <div class="kpi bad"><div class="n" id="kpi-bad">0</div><div>Fallas</div></div>
       </div>
       <div class="summary-list" id="summary-chips"></div>
-      <div class="summary-footer" id="summary-footer"></div>
+
+      <!-- 🔙 Vuelve la acción para intervenir cuando todo está en verde -->
+      <div class="summary-actions" style="margin-top:10px;">
+        <button id="btn-intervenir" class="btn-intervenir" style="
+          padding:10px 14px;border:none;border-radius:10px;
+          background:#31a335;color:#fff;font-weight:800;">
+          Reportar fallo / advertencia
+        </button>
+      </div>
+
+      <div class="summary-footer" id="summary-footer" style="margin-top:8px;font-size:12px;color:#cbd5e1;"></div>
     </div>
   `;
   document.querySelector('.panel')?.insertBefore(wrap, document.getElementById('grid-linea'));
+
+  // Listeners del resumen (una sola vez)
+  wrap.addEventListener('click', (e) => {
+    const chip = e.target.closest('.chip[data-id]');
+    if (chip) {
+      enterInterventionMode(chip.dataset.id);
+      return;
+    }
+    if (e.target.id === 'btn-intervenir') {
+      enterInterventionMode(ORDEN[0].id);
+    }
+  });
 }
 
 function firstIssueId(){
@@ -338,15 +304,23 @@ function firstIssueId(){
   return null;
 }
 
+function enterInterventionMode(targetId){
+  // Salir del resumen, mostrar grilla
+  document.body.classList.remove('mobile-summary');
+  // Abrir controles y scrollear a la tarjeta objetivo
+  const id = targetId || ORDEN[0].id;
+  const el = document.getElementById(`card-${id}`);
+  if (!el) return;
+  el.classList.add('show-controls');
+  setTimeout(() => {
+    el.scrollIntoView({ behavior:'smooth', block:'start' });
+  }, 0);
+}
+
 function scrollToIssue(){
   const id = firstIssueId();
   if (!id) return;
-  const el = document.getElementById(`card-${id}`);
-  if (!el) return;
-  setTimeout(() => {
-    el.scrollIntoView({ behavior:'smooth', block:'start' });
-    el.classList.add('show-controls');
-  }, 50);
+  enterInterventionMode(id);
 }
 
 function updateMobileSummary(){
@@ -361,8 +335,8 @@ function updateMobileSummary(){
   for (const n of ORDEN){
     const st = estadosActuales[n.id] || 'verde';
     if (st === 'verde') ok++;
-    if (st === 'amarillo') { warn++; chips.push({t:n.label,c:'warn'}); }
-    if (st === 'rojo')     { bad++;  chips.push({t:n.label,c:'bad'});  }
+    if (st === 'amarillo') { warn++; chips.push({t:n.label,c:'warn',id:n.id}); }
+    if (st === 'rojo')     { bad++;  chips.push({t:n.label,c:'bad', id:n.id}); }
   }
 
   const $ok   = document.getElementById('kpi-ok');
@@ -374,20 +348,22 @@ function updateMobileSummary(){
 
   const list = document.getElementById('summary-chips');
   if (list){
-    list.innerHTML = chips.map(ch => `<span class="chip ${ch.c}">${ch.t}</span>`).join('');
+    list.innerHTML = chips
+      .map(ch => `<span class="chip ${ch.c}" data-id="${ch.id}">${ch.t}</span>`)
+      .join('');
   }
 
   const footer = document.getElementById('summary-footer');
   if (footer){
     footer.textContent = (warn===0 && bad===0)
-      ? 'Todo en verde. No es necesario revisar.'
+      ? 'Todo en verde. Podés intervenir si necesitás reportar algo.'
       : 'Se detectaron incidencias. Mostrando tarjetas…';
   }
 
   if (warn===0 && bad===0){
-    document.body.classList.add('mobile-summary');
+    document.body.classList.add('mobile-summary');   // muestra RESUMEN, oculta GRILLA
   } else {
-    document.body.classList.remove('mobile-summary');
+    document.body.classList.remove('mobile-summary'); // muestra GRILLA
     scrollToIssue();
   }
 }
