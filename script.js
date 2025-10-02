@@ -44,11 +44,12 @@ const grid = $('#grid-linea');
    - WA_PREFIX: texto opcional que se antepone a lo que escribís
 ======================================================== */
 const WA_NUMBER = "";   // ej: "54911xxxxxxxx"  (vacío => selector de contacto)
-const WA_PREFIX = "";   // ej: "[L2] "
+const WA_PREFIX = "[L2] "; // si querés prefijo en el mensaje final
 
 const isMobileUA = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-function buildWhatsAppURL(textoPlano){
-  const text = encodeURIComponent(WA_PREFIX + (textoPlano || ""));
+
+function buildWhatsAppURL(messagePlain) {
+  const text = encodeURIComponent(messagePlain || "");
   if (WA_NUMBER && WA_NUMBER.trim()){
     const num = WA_NUMBER.replace(/[^\d]/g,'');
     return isMobileUA()
@@ -60,6 +61,36 @@ function buildWhatsAppURL(textoPlano){
       : `https://wa.me/?text=${text}`;
   }
 }
+
+function estadoTitulo(color){
+  if (color === 'rojo') return 'FALLO';
+  if (color === 'amarillo') return 'ADVERTENCIA';
+  return 'OK';
+}
+
+function formatLocal(tsISO){
+  try{
+    const d = new Date(tsISO || Date.now());
+    return d.toLocaleString(undefined, {
+      year:'numeric', month:'2-digit', day:'2-digit',
+      hour:'2-digit', minute:'2-digit', second:'2-digit'
+    });
+  }catch{ return tsISO || ''; }
+}
+
+/* Arma el mensaje final para WA */
+function buildIncidentMessage(id, color, texto, tsISO){
+  const titulo = estadoTitulo(color);
+  const equipo = labelDe(id);
+  const hora   = formatLocal(tsISO);
+  const detalle = (texto || '').trim();
+
+  // Ajustá el formato a gusto
+  return `${WA_PREFIX}${titulo} — ${equipo}
+Hora: ${hora}
+Detalle: ${detalle}`;
+}
+
 
 /* Muestra un banner en la tarjeta con botón “Enviar por WhatsApp” (no lo bloquea el navegador) */
 function showWhatsAppBanner(id, texto){
@@ -259,9 +290,12 @@ async function cambiarEstado(id, color){
   await guardarEnFirestore(id, color, texto, ts);
 
   // Luego mostrar botón de WhatsApp (click del usuario => no lo bloquean)
-  if (color === 'amarillo' || color === 'rojo') {
-    showWhatsAppBanner(id, texto);
-  }
+  // Luego mostrar botón de WhatsApp (click del usuario => no lo bloquean)
+if (color === 'amarillo' || color === 'rojo') {
+  const mensajeWA = buildIncidentMessage(id, color, texto, ts);
+  showWhatsAppBanner(id, mensajeWA);
+}
+
 }
 
 function actualizarBotones(id, estado){
