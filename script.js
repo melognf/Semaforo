@@ -269,7 +269,6 @@ function ensureSummaryShell(){
       </div>
       <div class="summary-list" id="summary-chips"></div>
 
-      <!-- 🔙 Vuelve la acción para intervenir cuando todo está en verde -->
       <div class="summary-actions" style="margin-top:10px;">
         <button id="btn-intervenir" class="btn-intervenir" style="
           padding:10px 14px;border:none;border-radius:10px;
@@ -305,13 +304,12 @@ function firstIssueId(){
 }
 
 function enterInterventionMode(targetId){
-  // Salir del resumen, mostrar grilla
   document.body.classList.remove('mobile-summary');
-  // Abrir controles y scrollear a la tarjeta objetivo
   const id = targetId || ORDEN[0].id;
   const el = document.getElementById(`card-${id}`);
   if (!el) return;
-  el.classList.add('show-controls');
+  // 👉 abrir controles con auto-ocultado (10 s móvil / 4 s desktop)
+  forceShowControls(el);
   setTimeout(() => {
     el.scrollIntoView({ behavior:'smooth', block:'start' });
   }, 0);
@@ -320,7 +318,13 @@ function enterInterventionMode(targetId){
 function scrollToIssue(){
   const id = firstIssueId();
   if (!id) return;
-  enterInterventionMode(id);
+  const el = document.getElementById(`card-${id}`);
+  if (!el) return;
+  // 👉 abrir controles con auto-ocultado
+  forceShowControls(el);
+  setTimeout(() => {
+    el.scrollIntoView({ behavior:'smooth', block:'start' });
+  }, 0);
 }
 
 function updateMobileSummary(){

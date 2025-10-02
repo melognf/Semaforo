@@ -523,3 +523,22 @@ button.rojo-btn{ background:#F44336 }
   #summary-mobile .summary-actions{ display: none; }
 }
 
+/* 1) Aumentamos el ancho máximo del contenedor para que entren 5 tarjetas sin apretar */
+.panel{
+  max-width: 1600px; /* antes: 1200px */
+}
+
+/* 2) Base responsive: sigue siendo fluido en pantallas chicas/medianas */
+.grid{
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); /* antes minmax(260px, 1fr) */
+  gap: 1rem;
+}
+
+/* 3) En desktop ancho, forzamos exactamente 5 columnas -> 2 filas de 5 */
+@media (min-width: 1280px){
+  .grid{
+    grid-template-columns: repeat(5, 1fr);
+  }
+}
+
