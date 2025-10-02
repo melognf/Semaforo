@@ -36,36 +36,88 @@ const estadosActuales = {};
 const timestampsVistos = {};
 const origenes = {};
 
-/* ========= WhatsApp (ws) =========
-   - Si querés un número fijo: poner WA_NUMBER = "54911xxxxxxxx"
-   - WA_PREFIX: texto opcional que se agrega antes del mensaje que escribís
-=================================== */
-const WA_NUMBER = "";         // ej: "54911xxxxxxxx" (vacío => elegir contacto)
-const WA_PREFIX = "";         // ej: "[L2] "
-const isMobileDevice = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+const $ = (s, ctx=document) => ctx.querySelector(s);
+const grid = $('#grid-linea');
 
-function buildWhatsAppURL(msg){
-  const text = encodeURIComponent(WA_PREFIX + (msg || ""));
+/* ========= WhatsApp (link seguro, sin popups) =========
+   - WA_NUMBER: si querés forzar un destino (con código país, sin "+")
+   - WA_PREFIX: texto opcional que se antepone a lo que escribís
+======================================================== */
+const WA_NUMBER = "";   // ej: "54911xxxxxxxx"  (vacío => selector de contacto)
+const WA_PREFIX = "";   // ej: "[L2] "
+
+const isMobileUA = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+function buildWhatsAppURL(textoPlano){
+  const text = encodeURIComponent(WA_PREFIX + (textoPlano || ""));
   if (WA_NUMBER && WA_NUMBER.trim()){
     const num = WA_NUMBER.replace(/[^\d]/g,'');
-    return isMobileDevice()
+    return isMobileUA()
       ? `whatsapp://send?phone=${num}&text=${text}`
       : `https://wa.me/${num}?text=${text}`;
   } else {
-    return isMobileDevice()
+    return isMobileUA()
       ? `whatsapp://send?text=${text}`
       : `https://wa.me/?text=${text}`;
   }
 }
-function enviarWhatsApp(msg){
-  const url = buildWhatsAppURL(msg);
-  // Intento abrir en nueva pestaña; si el browser lo bloquea, navego en la misma
-  const win = window.open(url, '_blank');
-  if (!win) window.location.href = url;
-}
 
-const $ = (s, ctx=document) => ctx.querySelector(s);
-const grid = $('#grid-linea');
+/* Muestra un banner en la tarjeta con botón “Enviar por WhatsApp” (no lo bloquea el navegador) */
+function showWhatsAppBanner(id, texto){
+  const card = document.getElementById(`card-${id}`);
+  if (!card) return;
+
+  // Reusar si ya existe
+  let banner = card.querySelector('.wa-banner');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.className = 'wa-banner';
+    // estilos inline mínimos para no tocar tu CSS
+    banner.style.position = 'relative';
+    banner.style.marginTop = '8px';
+    banner.style.display = 'flex';
+    banner.style.gap = '8px';
+    banner.style.justifyContent = 'center';
+    banner.style.flexWrap = 'wrap';
+
+    const btn = document.createElement('a');
+    btn.className = 'wa-link';
+    btn.textContent = 'Enviar por WhatsApp';
+    btn.style.textDecoration = 'none';
+    btn.style.padding = '8px 12px';
+    btn.style.borderRadius = '10px';
+    btn.style.fontWeight = '800';
+    btn.style.background = '#25D366';
+    btn.style.color = '#0b2f1f';
+    btn.style.border = '1px solid #128c7e';
+    btn.target = '_blank';
+    btn.rel = 'noopener';
+
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.textContent = '×';
+    close.title = 'Cerrar';
+    close.style.border = 'none';
+    close.style.background = 'transparent';
+    close.style.color = '#fff';
+    close.style.fontSize = '20px';
+    close.style.cursor = 'pointer';
+    close.addEventListener('click', () => banner.remove());
+
+    banner.appendChild(btn);
+    banner.appendChild(close);
+    card.appendChild(banner);
+  }
+
+  const link = banner.querySelector('.wa-link');
+  if (link){
+    link.href = buildWhatsAppURL(texto || '');
+  }
+
+  // si la tarjeta está en modo compacto, aseguramos que se vean los controles
+  if (card.classList.contains('compact')) {
+    forceShowControls(card);
+  }
+}
 
 /* ========= Render ========= */
 function crearCard(node){
@@ -110,6 +162,7 @@ function crearCardTransporte({id, label}){
 }
 function montarUI(){
   ORDEN.forEach(n => grid.appendChild(crearCard(n)));
+  // Delegación de eventos para botones
   document.body.addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-id][data-color]');
     if (!btn) return;
@@ -175,7 +228,7 @@ async function guardarEnFirestore(id, estado, texto, timestamp){
   }, { merge: true });
 }
 
-/* ========= Cambio de estado + WhatsApp ========= */
+/* ========= Cambio de estado (con banner WA) ========= */
 async function cambiarEstado(id, color){
   const estadoActual = estadosActuales[id];
   const origenActual = origenes[id];
@@ -198,18 +251,17 @@ async function cambiarEstado(id, color){
 
   const ts = new Date().toISOString();
 
-  // 1) Feedback inmediato UI (sin await, mantiene el gesto de usuario)
+  // UI inmediata
   mostrarEstado(id, color, texto, ts);
   origenes[id] = deviceId;
 
-  // 2) WhatsApp (solo cuando es advertencia o fallo) – usa el MISMO texto que escribiste
-  if (color === 'amarillo' || color === 'rojo') {
-    // Abrimos WA dentro del mismo gesto de clic para evitar bloqueos del navegador
-    enviarWhatsApp(texto);
-  }
-
-  // 3) Guardar en Firestore (puede resolverse luego)
+  // Guardar primero (fiabilidad)
   await guardarEnFirestore(id, color, texto, ts);
+
+  // Luego mostrar botón de WhatsApp (click del usuario => no lo bloquean)
+  if (color === 'amarillo' || color === 'rojo') {
+    showWhatsAppBanner(id, texto);
+  }
 }
 
 function actualizarBotones(id, estado){
@@ -242,7 +294,7 @@ function suscribir(id){
     if (recibido > visto) {
       timestampsVistos[id] = data.timestamp;
       origenes[id] = data.origen || null;
-      // Importante: NO abrimos WhatsApp acá (solo el generador debe hacerlo)
+      // Los demás clientes solo actualizan UI (no abren WhatsApp)
       mostrarEstado(id, data.estado, data.texto, data.timestamp);
     }
   });
@@ -250,7 +302,7 @@ function suscribir(id){
   mostrarEstado(id, estadosActuales[id] || 'verde', '', '');
 }
 
-/* ========= Bootstrap + UX ========= */
+/* ========= Bootstrap + UX controles ocultos ========= */
 const BASE_SHOW_MS   = 4000;   // desktop
 const MOBILE_SHOW_MS = 10000;  // móvil
 const isMobile = () => window.matchMedia('(pointer: coarse)').matches;
@@ -272,7 +324,6 @@ function attachRevealHandlers(){
       clearTimeout(card._hideTimer);
       card.classList.remove('show-controls');
     });
-    // Móvil y desktop: un toque/clic en la tarjeta (no en botones) abre con timer
     card.addEventListener('pointerdown', (e) => {
       if (e.target.closest('.botones')) return;
       forceShowControls(card);
@@ -309,7 +360,6 @@ function ensureSummaryShell(){
         <div class="kpi bad"><div class="n" id="kpi-bad">0</div><div>Fallas</div></div>
       </div>
       <div class="summary-list" id="summary-chips"></div>
-
       <div class="summary-actions" style="margin-top:10px;">
         <button id="btn-intervenir" class="btn-intervenir" style="
           padding:10px 14px;border:none;border-radius:10px;
@@ -317,7 +367,6 @@ function ensureSummaryShell(){
           Reportar fallo / advertencia
         </button>
       </div>
-
       <div class="summary-footer" id="summary-footer" style="margin-top:8px;font-size:12px;color:#cbd5e1;"></div>
     </div>
   `;
