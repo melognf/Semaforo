@@ -36,6 +36,34 @@ const estadosActuales = {};
 const timestampsVistos = {};
 const origenes = {};
 
+/* ========= WhatsApp (ws) =========
+   - Si querés un número fijo: poner WA_NUMBER = "54911xxxxxxxx"
+   - WA_PREFIX: texto opcional que se agrega antes del mensaje que escribís
+=================================== */
+const WA_NUMBER = "";         // ej: "54911xxxxxxxx" (vacío => elegir contacto)
+const WA_PREFIX = "";         // ej: "[L2] "
+const isMobileDevice = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+function buildWhatsAppURL(msg){
+  const text = encodeURIComponent(WA_PREFIX + (msg || ""));
+  if (WA_NUMBER && WA_NUMBER.trim()){
+    const num = WA_NUMBER.replace(/[^\d]/g,'');
+    return isMobileDevice()
+      ? `whatsapp://send?phone=${num}&text=${text}`
+      : `https://wa.me/${num}?text=${text}`;
+  } else {
+    return isMobileDevice()
+      ? `whatsapp://send?text=${text}`
+      : `https://wa.me/?text=${text}`;
+  }
+}
+function enviarWhatsApp(msg){
+  const url = buildWhatsAppURL(msg);
+  // Intento abrir en nueva pestaña; si el browser lo bloquea, navego en la misma
+  const win = window.open(url, '_blank');
+  if (!win) window.location.href = url;
+}
+
 const $ = (s, ctx=document) => ctx.querySelector(s);
 const grid = $('#grid-linea');
 
@@ -147,6 +175,7 @@ async function guardarEnFirestore(id, estado, texto, timestamp){
   }, { merge: true });
 }
 
+/* ========= Cambio de estado + WhatsApp ========= */
 async function cambiarEstado(id, color){
   const estadoActual = estadosActuales[id];
   const origenActual = origenes[id];
@@ -169,9 +198,17 @@ async function cambiarEstado(id, color){
 
   const ts = new Date().toISOString();
 
+  // 1) Feedback inmediato UI (sin await, mantiene el gesto de usuario)
   mostrarEstado(id, color, texto, ts);
   origenes[id] = deviceId;
 
+  // 2) WhatsApp (solo cuando es advertencia o fallo) – usa el MISMO texto que escribiste
+  if (color === 'amarillo' || color === 'rojo') {
+    // Abrimos WA dentro del mismo gesto de clic para evitar bloqueos del navegador
+    enviarWhatsApp(texto);
+  }
+
+  // 3) Guardar en Firestore (puede resolverse luego)
   await guardarEnFirestore(id, color, texto, ts);
 }
 
@@ -205,6 +242,7 @@ function suscribir(id){
     if (recibido > visto) {
       timestampsVistos[id] = data.timestamp;
       origenes[id] = data.origen || null;
+      // Importante: NO abrimos WhatsApp acá (solo el generador debe hacerlo)
       mostrarEstado(id, data.estado, data.texto, data.timestamp);
     }
   });
@@ -234,7 +272,7 @@ function attachRevealHandlers(){
       clearTimeout(card._hideTimer);
       card.classList.remove('show-controls');
     });
-    // En móvil, un toque sobre la tarjeta (pero no sobre los botones) muestra los controles
+    // Móvil y desktop: un toque/clic en la tarjeta (no en botones) abre con timer
     card.addEventListener('pointerdown', (e) => {
       if (e.target.closest('.botones')) return;
       forceShowControls(card);
@@ -243,12 +281,15 @@ function attachRevealHandlers(){
   });
 }
 
-montarUI();
-ORDEN.forEach(async n => {
-  await setDoc(doc(db,'equipos', n.id), { tipo: n.type }, { merge: true });
-  suscribir(n.id);
-});
-attachRevealHandlers();
+function montarYArrancar(){
+  montarUI();
+  ORDEN.forEach(async n => {
+    await setDoc(doc(db,'equipos', n.id), { tipo: n.type }, { merge: true });
+    suscribir(n.id);
+  });
+  attachRevealHandlers();
+}
+montarYArrancar();
 
 /* ================================
    ===== Resumen móvil (VERDE) ===
@@ -282,7 +323,6 @@ function ensureSummaryShell(){
   `;
   document.querySelector('.panel')?.insertBefore(wrap, document.getElementById('grid-linea'));
 
-  // Listeners del resumen (una sola vez)
   wrap.addEventListener('click', (e) => {
     const chip = e.target.closest('.chip[data-id]');
     if (chip) {
@@ -308,7 +348,6 @@ function enterInterventionMode(targetId){
   const id = targetId || ORDEN[0].id;
   const el = document.getElementById(`card-${id}`);
   if (!el) return;
-  // 👉 abrir controles con auto-ocultado (10 s móvil / 4 s desktop)
   forceShowControls(el);
   setTimeout(() => {
     el.scrollIntoView({ behavior:'smooth', block:'start' });
@@ -320,7 +359,6 @@ function scrollToIssue(){
   if (!id) return;
   const el = document.getElementById(`card-${id}`);
   if (!el) return;
-  // 👉 abrir controles con auto-ocultado
   forceShowControls(el);
   setTimeout(() => {
     el.scrollIntoView({ behavior:'smooth', block:'start' });
@@ -365,9 +403,9 @@ function updateMobileSummary(){
   }
 
   if (warn===0 && bad===0){
-    document.body.classList.add('mobile-summary');   // muestra RESUMEN, oculta GRILLA
+    document.body.classList.add('mobile-summary');
   } else {
-    document.body.classList.remove('mobile-summary'); // muestra GRILLA
+    document.body.classList.remove('mobile-summary');
     scrollToIssue();
   }
 }
